@@ -1,0 +1,1480 @@
+import streamlit as st
+import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+import numpy as np
+from reportlab.lib.pagesizes import letter, A4
+from reportlab.lib import colors
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak, Image
+from reportlab.lib.units import inch
+from datetime import datetime
+import io
+import base64
+import tempfile
+import os
+import folium
+from streamlit_folium import st_folium
+import folium
+from streamlit_folium import st_folium
+
+# Configuração da página
+st.set_page_config(
+    page_title="Dashboard de Precificação - Municípios de Alagoas",
+    page_icon="🏘️",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# CSS moderno e profissional
+st.markdown("""
+<style>
+    .main-header {
+        color: #2E86AB;
+        text-align: center;
+        padding: 2rem 0;
+        font-size: 2.5rem;
+        font-weight: 700;
+        background: linear-gradient(90deg, #2E86AB, #A23B72);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        margin-bottom: 2rem;
+    }
+    
+    .metric-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 1.5rem;
+        border-radius: 15px;
+        box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+        margin: 0.5rem 0;
+        transition: transform 0.3s ease;
+    }
+    
+    .sidebar-info {
+        background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        color: white;
+        padding: 1.5rem;
+        border-radius: 15px;
+        margin: 1rem 0;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    }
+    
+    /* Métricas com gradientes modernos */
+    [data-testid="metric-container"] {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        padding: 1.5rem;
+        border-radius: 15px;
+        box-shadow: 0 8px 25px rgba(102, 126, 234, 0.25);
+        margin: 0.8rem 0;
+        transition: all 0.3s ease;
+    }
+    
+    [data-testid="metric-container"]:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 12px 35px rgba(102, 126, 234, 0.35);
+    }
+    
+    /* Valores das métricas em branco */
+    [data-testid="metric-container"] > div {
+        background: transparent;
+        color: white !important;
+    }
+    
+    [data-testid="metric-container"] label {
+        color: rgba(255,255,255,0.9) !important;
+        font-weight: 600;
+    }
+    
+    [data-testid="metric-container"] [data-testid="metric-value"] {
+        color: white !important;
+        font-weight: 700;
+        font-size: 1.8rem;
+    }
+    
+    /* Botões com estilo moderno */
+    .stButton button {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        border-radius: 25px;
+        padding: 0.75rem 2rem;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+    }
+    
+    .stButton button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+    }
+    
+    /* Tabs com estilo moderno */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 8px;
+        background: #f8f9fa;
+        padding: 0.5rem;
+        border-radius: 15px;
+    }
+    
+    .stTabs [data-baseweb="tab"] {
+        background: #ffffff;
+        border-radius: 10px;
+        padding: 0.75rem 1.5rem;
+        border: 2px solid #e9ecef;
+        font-weight: 600;
+        color: #495057 !important;
+        transition: all 0.3s ease;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    }
+    
+    .stTabs [data-baseweb="tab"]:hover {
+        border-color: #667eea;
+        color: #667eea !important;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+    }
+    
+    .stTabs [aria-selected="true"] {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+        color: white !important;
+        border-color: #667eea;
+        box-shadow: 0 6px 20px rgba(102, 126, 234, 0.3);
+    }
+    
+    /* Força cor do texto das abas */
+    .stTabs [data-baseweb="tab"] div {
+        color: inherit !important;
+    }
+    
+    .stTabs [aria-selected="true"] div {
+        color: white !important;
+    }
+    
+    /* Remove elementos desnecessários */
+    .metric-container {
+        background: transparent !important;
+        border: none !important;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+def clean_brazilian_number(value):
+    """Limpa e converte valores numéricos brasileiros para float"""
+    if pd.isna(value):
+        return np.nan
+    # Converte para string e remove aspas
+    str_val = str(value).replace('"', '').strip()
+    # Se já é um número, retorna
+    try:
+        return float(str_val)
+    except ValueError:
+        pass
+    # Remove pontos (separadores de milhares) e substitui vírgula por ponto
+    # Identifica se tem vírgula (decimal) ou apenas pontos (milhares)
+    if ',' in str_val:
+        # Tem vírgula decimal
+        parts = str_val.rsplit(',', 1)  # Divide pela última vírgula
+        if len(parts) == 2:
+            integer_part = parts[0].replace('.', '')  # Remove pontos de milhares
+            decimal_part = parts[1]
+            str_val = f"{integer_part}.{decimal_part}"
+    else:
+        # Apenas pontos (pode ser milhares ou decimal)
+        if str_val.count('.') > 1:
+            # Múltiplos pontos = separadores de milhares
+            str_val = str_val.replace('.', '')
+    
+    try:
+        return float(str_val)
+    except ValueError:
+        return np.nan
+
+@st.cache_data
+def load_data():
+    """Carrega e processa os dados do CSV"""
+    try:
+        # Procura arquivos CSV na pasta data primeiro, depois no diretório atual
+        data_paths = ['data', '.']
+        csv_file = None
+        
+        for data_dir in data_paths:
+            if os.path.exists(data_dir):
+                csv_files = [f for f in os.listdir(data_dir) if f.endswith('.csv')]
+                if csv_files:
+                    csv_file = os.path.join(data_dir, csv_files[0])
+                    break
+        
+        if not csv_file:
+            st.error("Nenhum arquivo CSV encontrado!")
+            return pd.DataFrame()
+        
+        st.info(f"📁 Carregando dados de: {csv_file}")
+        
+        # Carrega o CSV
+        df = pd.read_csv(csv_file)
+        
+        # Limpeza e processamento dos dados
+        # Remove colunas desnecessárias
+        df = df.drop(['_mb_row_id', 'Unnamed Column'], axis=1, errors='ignore')
+        
+        # Aplica a limpeza às colunas numéricas
+        numeric_columns = df.select_dtypes(include=['object']).columns
+        for col in numeric_columns:
+            if col not in ['Nm Mun', 'Sigla Uf', 'Ckey']:
+                df[col] = df[col].apply(clean_brazilian_number)
+        
+        # Renomeia colunas para facilitar o uso
+        column_mapping = {
+            'Nm Mun': 'Municipio',
+            'Cd Mun': 'Codigo_Municipio',
+            'Populacao': 'Populacao',
+            'Nota Veg': 'Nota_Vegetacao',
+            'Nota Area': 'Nota_Area',
+            'Nota Relevo': 'Nota_Relevo',
+            'Nota Media': 'Nota_Media',
+            'Area Cidade': 'Area_Cidade',
+            'Num Imoveis': 'Num_Imoveis',
+            'Valor Mun Perim': 'Valor_Municipal_Perimetro',
+            'Valor Mun Area': 'Valor_Municipal_Area'
+        }
+        
+        df = df.rename(columns=column_mapping)
+        
+        return df
+    except Exception as e:
+        st.error(f"Erro ao carregar os dados: {e}")
+        return pd.DataFrame()
+
+def create_overview_metrics(df):
+    """Cria métricas de visão geral focadas em precificação por área"""
+    if df.empty:
+        return
+    
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        st.metric(
+            "🏘️ Total de Municípios",
+            f"{len(df):,}",
+            help="Número total de municípios analisados"
+        )
+    
+    with col2:
+        if 'Valor_Municipal_Area' in df.columns:
+            # Limpa e converte valores da área
+            area_clean = pd.to_numeric(df['Valor_Municipal_Area'], errors='coerce').fillna(0)
+            valor_total_area = area_clean.sum()
+            st.metric(
+                "💰 Valor Total",
+                f"R$ {valor_total_area/1_000_000_000:.1f}B",
+                help="Valor municipal total por área (em bilhões)"
+            )
+        else:
+            st.metric("💰 Valor Total", "N/A")
+    
+    with col3:
+        if 'Valor_Municipal_Area' in df.columns:
+            # Calcula valor médio por município
+            area_clean = pd.to_numeric(df['Valor_Municipal_Area'], errors='coerce').fillna(0)
+            area_valid = area_clean[area_clean > 0]
+            if len(area_valid) > 0:
+                valor_medio = area_valid.mean()
+                st.metric(
+                    "� Valor Médio",
+                    f"R$ {valor_medio/1_000_000:.0f}M",
+                    help="Valor médio por município (área) em milhões"
+                )
+            else:
+                st.metric("� Valor Médio", "N/A")
+        else:
+            st.metric("📊 Valor Médio", "N/A")
+    
+    with col4:
+        if 'Valor_Municipal_Area' in df.columns:
+            area_clean = pd.to_numeric(df['Valor_Municipal_Area'], errors='coerce').fillna(0)
+            area_valid = area_clean[area_clean > 0]
+            if len(area_valid) > 0:
+                valor_max = area_valid.max()
+                st.metric(
+                    "🏆 Maior Valor",
+                    f"R$ {valor_max/1_000_000_000:.1f}B",
+                    help="Maior valor municipal por área"
+                )
+            else:
+                st.metric("🏆 Maior Valor", "N/A")
+        else:
+            st.metric("🏆 Maior Valor", "N/A")
+
+def create_population_chart(df):
+    """Cria gráfico de população por município"""
+    if 'Populacao' not in df.columns or 'Municipio' not in df.columns:
+        st.warning("Dados de população não disponíveis")
+        return
+    
+    # Limpa e converte dados de população
+    df_clean = df.copy()
+    df_clean['Populacao'] = pd.to_numeric(df_clean['Populacao'], errors='coerce').fillna(0)
+    
+    # Remove municípios com população 0 ou nula
+    df_clean = df_clean[df_clean['Populacao'] > 0]
+    
+    if df_clean.empty:
+        st.warning("Nenhum dado válido de população encontrado")
+        return
+    
+    # Top 15 municípios por população
+    top_pop = df_clean.nlargest(15, 'Populacao')
+    
+    fig = px.bar(
+        top_pop,
+        x='Populacao',
+        y='Municipio',
+        orientation='h',
+        title="Top 15 Municípios por População",
+        labels={'Populacao': 'População', 'Municipio': 'Município'},
+        color='Populacao',
+        color_continuous_scale='Blues'
+    )
+    
+def create_value_ranking_chart(df):
+    """Cria gráfico de ranking dos municípios por valor"""
+    if 'Valor_Municipal_Area' not in df.columns or 'Municipio' not in df.columns:
+        st.warning("Dados de valor por área não disponíveis")
+        return None
+    
+    # Limpa e converte dados
+    df_clean = df.copy()
+    df_clean['Valor_Area_Clean'] = pd.to_numeric(df_clean['Valor_Municipal_Area'], errors='coerce').fillna(0)
+    df_clean = df_clean.dropna(subset=['Valor_Area_Clean'])
+    df_clean = df_clean[df_clean['Valor_Area_Clean'] > 0]
+    
+    if df_clean.empty:
+        st.warning("Dados insuficientes para análise de valores")
+        return None
+    
+    # Top 15 municípios por valor
+    top_values = df_clean.nlargest(15, 'Valor_Area_Clean')
+    
+    # Converte para bilhões para melhor visualização
+    top_values['Valor_Bilhoes'] = top_values['Valor_Area_Clean'] / 1_000_000_000
+    
+    fig = px.bar(
+        top_values,
+        x='Valor_Bilhoes',
+        y='Municipio',
+        title="🏆 Top 15 Municípios por Valor de Área",
+        labels={'Valor_Bilhoes': 'Valor (R$ Bilhões)', 'Municipio': 'Município'},
+        color='Valor_Bilhoes',
+        color_continuous_scale='Viridis',
+        orientation='h'
+    )
+    
+    fig.update_layout(
+        height=600,
+        showlegend=False,
+        yaxis={'categoryorder': 'total ascending'},
+        font=dict(size=12),
+        title_font_size=16,
+        margin=dict(l=150, r=50, t=80, b=50)
+    )
+    
+    return fig
+
+def create_value_per_population_chart(df):
+    """Cria gráfico de valor por habitante"""
+    if 'Valor_Municipal_Area' not in df.columns or 'Populacao' not in df.columns:
+        st.warning("Dados de valor ou população não disponíveis")
+        return None
+    
+    # Limpa dados
+    df_clean = df.copy()
+    df_clean['Valor_Area'] = pd.to_numeric(df_clean['Valor_Municipal_Area'], errors='coerce').fillna(0)
+    df_clean['Pop'] = pd.to_numeric(df_clean['Populacao'], errors='coerce').fillna(0)
+    df_clean = df_clean[(df_clean['Valor_Area'] > 0) & (df_clean['Pop'] > 0)]
+    
+    if df_clean.empty:
+        st.warning("Dados insuficientes para análise")
+        return None
+    
+    # Calcula valor per capita (em milhões por mil habitantes)
+    df_clean['Valor_Per_Capita'] = (df_clean['Valor_Area'] / df_clean['Pop']) * 1000
+    
+    # Top 15 por valor per capita
+    top_per_capita = df_clean.nlargest(15, 'Valor_Per_Capita')
+    
+    fig = px.scatter(
+        top_per_capita,
+        x='Pop',
+        y='Valor_Area',
+        hover_data=['Municipio', 'Valor_Per_Capita'],
+        title="💹 Valor vs População dos Municípios",
+        labels={
+            'Pop': 'População',
+            'Valor_Area': 'Valor por Área (R$)'
+        },
+        color='Valor_Per_Capita',
+        color_continuous_scale='RdYlBu_r',
+        size='Valor_Area',
+        size_max=15
+    )
+    
+    fig.update_layout(
+        height=500,
+        title_font_size=16,
+        margin=dict(l=50, r=50, t=80, b=50)
+    )
+    
+    return fig
+
+def create_price_distribution_chart(df):
+    """Cria gráfico de distribuição de preços"""
+    if 'Valor_Municipal_Area' not in df.columns:
+        st.warning("Dados de valor não disponíveis")
+        return None
+    
+    df_clean = df.copy()
+    df_clean['Valor_Area'] = pd.to_numeric(df_clean['Valor_Municipal_Area'], errors='coerce').fillna(0)
+    df_clean = df_clean[df_clean['Valor_Area'] > 0]
+    
+    if df_clean.empty:
+        st.warning("Dados insuficientes para distribuição")
+        return None
+    
+    # Converte para bilhões
+    df_clean['Valor_Bilhoes'] = df_clean['Valor_Area'] / 1_000_000_000
+    
+    fig = px.histogram(
+        df_clean,
+        x='Valor_Bilhoes',
+        nbins=20,
+        title="📊 Distribuição de Valores por Área",
+        labels={'Valor_Bilhoes': 'Valor (R$ Bilhões)', 'count': 'Quantidade de Municípios'},
+        color_discrete_sequence=['#2E86AB']
+    )
+    
+    fig.update_layout(
+        height=400,
+        title_font_size=16,
+        showlegend=False,
+        margin=dict(l=50, r=50, t=80, b=50)
+    )
+    
+    return fig
+
+def create_notes_distribution(df):
+    """Cria gráfico de distribuição das notas"""
+    note_columns = [col for col in df.columns if 'Nota' in col and col != 'Nota_Media']
+    
+    if not note_columns:
+        st.warning("Dados de notas não disponíveis")
+        return
+    
+    # Criar subplot para múltiplas notas
+    fig = make_subplots(
+        rows=2, cols=2,
+        subplot_titles=note_columns[:4],
+        specs=[[{"secondary_y": False}, {"secondary_y": False}],
+               [{"secondary_y": False}, {"secondary_y": False}]]
+    )
+    
+    colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728']
+    
+    for i, col in enumerate(note_columns[:4]):
+        row = (i // 2) + 1
+        col_pos = (i % 2) + 1
+        
+        fig.add_trace(
+            go.Histogram(
+                x=df[col],
+                name=col.replace('Nota_', ''),
+                marker_color=colors[i],
+                opacity=0.7,
+                nbinsx=20
+            ),
+            row=row, col=col_pos
+        )
+    
+    fig.update_layout(
+        title="Distribuição das Notas por Categoria",
+        height=600,
+        showlegend=False
+    )
+    
+    return fig
+
+def create_interactive_map(df):
+    """Cria um mapa interativo dos municípios de Alagoas com dados de precificação"""
+    
+    # Coordenadas aproximadas dos municípios de Alagoas (algumas principais)
+    municipios_coords = {
+        'Maceió': [-9.6658, -35.7353],
+        'Arapiraca': [-9.7515, -36.6597],
+        'Palmeira dos Índios': [-9.4056, -36.6283],
+        'Rio Largo': [-9.4739, -35.8553],
+        'União dos Palmares': [-9.1647, -36.0264],
+        'Penedo': [-10.2869, -36.5861],
+        'Coruripe': [-10.1253, -36.1758],
+        'São Miguel dos Campos': [-9.7808, -36.0897],
+        'Santana do Ipanema': [-9.3739, -37.2456],
+        'Delmiro Gouveia': [-9.3872, -37.9953],
+        'Pilar': [-9.5969, -35.9567],
+        'Marechal Deodoro': [-9.7122, -35.8975],
+        'São Sebastião': [-9.9022, -36.5583],
+        'Girau do Ponciano': [-9.8769, -36.8197],
+        'Campo Alegre': [-9.7797, -36.3583],
+        'Viçosa': [-9.3736, -36.2378],
+        'Quebrangulo': [-9.3206, -36.4711],
+        'São José da Laje': [-9.0036, -36.0528],
+        'Flexeiras': [-9.2633, -35.7189],
+        'Murici': [-9.3128, -35.9450],
+        'Messias': [-9.4058, -35.8197],
+        'Satuba': [-9.5706, -35.8306],
+        'Santa Luzia do Norte': [-9.6272, -35.8256],
+        'Coqueiro Seco': [-9.6286, -35.7942],
+        'Maribondo': [-9.5464, -36.2181],
+        'Cajueiro': [-9.3886, -36.1256],
+        'Colônia Leopoldina': [-8.9067, -35.7450],
+        'Joaquim Gomes': [-9.0372, -35.8131],
+        'Novo Lino': [-9.1281, -35.6575],
+        'Jacuípe': [-8.9225, -35.5264],
+        'Porto de Pedras': [-9.1772, -35.2550],
+        'Maragogi': [-9.0122, -35.2228],
+        'Japaratinga': [-9.0767, -35.2506],
+        'São Luís do Quitunde': [-9.3161, -35.5597],
+        'Passo de Camaragibe': [-9.2467, -35.4831],
+        'Barra de Santo Antônio': [-9.4281, -35.5019],
+        'Matriz de Camaragibe': [-9.1506, -35.5378],
+        'Porto Calvo': [-9.0386, -35.3978],
+        'Jundiá': [-8.9742, -35.8583],
+        'Branquinha': [-9.2331, -35.9383],
+        'Capela': [-9.4078, -36.0831],
+        'Chã Preta': [-9.2328, -36.2742],
+        'Paulo Jacinto': [-9.1406, -36.4086],
+        'Ibateguara': [-8.9719, -35.9367],
+        'Pindoba': [-8.9714, -36.3028],
+        'Coité do Nóia': [-9.0669, -36.1708],
+        'Taquarana': [-9.0575, -36.0589],
+        'Feira Grande': [-9.9039, -36.6700],
+        'Cacimbinhas': [-9.3925, -37.0825],
+        'Arapiraca': [-9.7515, -36.6597],
+        'Lagoa da Canoa': [-9.8594, -36.7672]
+    }
+    
+    # Centro do mapa (Alagoas)
+    center_lat, center_lon = -9.5713, -36.7820
+    
+    # Criar o mapa base
+    m = folium.Map(
+        location=[center_lat, center_lon],
+        zoom_start=8,
+        tiles='OpenStreetMap'
+    )
+    
+    # Calcular estatísticas para coloração
+    if 'Valor_Municipal_Area' in df.columns:
+        valor_min = df['Valor_Municipal_Area'].min()
+        valor_max = df['Valor_Municipal_Area'].max()
+        
+        # Adicionar marcadores para cada município
+        for _, row in df.iterrows():
+            municipio = row['Municipio']
+            valor = row['Valor_Municipal_Area']
+            
+            # Tentar encontrar coordenadas do município
+            coords = municipios_coords.get(municipio)
+            if not coords:
+                # Se não encontrar, usar coordenadas aproximadas baseadas no índice
+                lat_offset = (hash(municipio) % 100 - 50) * 0.01
+                lon_offset = (hash(municipio + 'lon') % 100 - 50) * 0.01
+                coords = [center_lat + lat_offset, center_lon + lon_offset]
+            
+            # Calcular cor baseada no valor (normalizado entre 0 e 1)
+            normalized_value = (valor - valor_min) / (valor_max - valor_min) if valor_max > valor_min else 0
+            
+            # Definir cor baseada no valor (verde para baixo, amarelo para médio, vermelho para alto)
+            if normalized_value < 0.33:
+                color = 'green'
+                icon_color = 'lightgreen'
+            elif normalized_value < 0.66:
+                color = 'orange'
+                icon_color = 'orange'
+            else:
+                color = 'red'
+                icon_color = 'lightred'
+            
+            # Criar popup com informações detalhadas
+            popup_text = f"""
+            <b>{municipio}</b><br>
+            💰 Valor (Área): R$ {valor:,.2f}<br>
+            👥 População: {row.get('Populacao', 'N/A'):,}<br>
+            """
+            
+            # Adicionar notas se disponíveis
+            nota_columns = [col for col in df.columns if col.startswith('Nota')]
+            if nota_columns:
+                popup_text += "<br><b>Notas:</b><br>"
+                for nota_col in nota_columns[:3]:  # Mostrar apenas as 3 primeiras notas
+                    if pd.notna(row.get(nota_col)):
+                        nota_name = nota_col.replace('Nota_', '').replace('_', ' ')
+                        popup_text += f"📊 {nota_name}: {row[nota_col]:.1f}<br>"
+            
+            # Adicionar marcador ao mapa
+            folium.Marker(
+                location=coords,
+                popup=folium.Popup(popup_text, max_width=300),
+                tooltip=f"{municipio} - R$ {valor:,.0f}",
+                icon=folium.Icon(
+                    color=color,
+                    icon='info-sign',
+                    prefix='glyphicon'
+                )
+            ).add_to(m)
+    
+    # Adicionar legenda
+    legend_html = '''
+    <div style="position: fixed; 
+                bottom: 50px; left: 50px; width: 200px; height: 120px; 
+                background-color: white; border:2px solid grey; z-index:9999; 
+                font-size:14px; padding: 10px">
+    <p><b>Legenda - Valores (Área)</b></p>
+    <p><i class="fa fa-circle" style="color:green"></i> Valores Baixos (até 33%)</p>
+    <p><i class="fa fa-circle" style="color:orange"></i> Valores Médios (33% - 66%)</p>
+    <p><i class="fa fa-circle" style="color:red"></i> Valores Altos (66% - 100%)</p>
+    </div>
+    '''
+    m.get_root().html.add_child(folium.Element(legend_html))
+    
+    return m
+
+def generate_pdf_report(df):
+    """Gera um relatório em PDF com os dados e análises principais"""
+    
+    # Criar buffer para o PDF
+    buffer = io.BytesIO()
+    
+    # Configurar documento PDF
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        rightMargin=72,
+        leftMargin=72,
+        topMargin=72,
+        bottomMargin=18
+    )
+    
+    # Estilos
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle(
+        'CustomTitle',
+        parent=styles['Heading1'],
+        fontSize=18,
+        spaceAfter=30,
+        textColor=colors.HexColor('#1f77b4'),
+        alignment=1  # Center
+    )
+    
+    heading_style = ParagraphStyle(
+        'CustomHeading',
+        parent=styles['Heading2'],
+        fontSize=14,
+        spaceAfter=12,
+        textColor=colors.HexColor('#1f77b4')
+    )
+    
+    # Conteúdo do PDF
+    story = []
+    
+    # Título
+    story.append(Paragraph("📊 Relatório de Precificação", title_style))
+    story.append(Paragraph("Municípios de Alagoas", title_style))
+    story.append(Spacer(1, 20))
+    
+    # Data de geração
+    data_atual = datetime.now().strftime("%d/%m/%Y %H:%M")
+    story.append(Paragraph(f"<b>Data de geração:</b> {data_atual}", styles['Normal']))
+    story.append(Spacer(1, 20))
+    
+    # Resumo Executivo
+    story.append(Paragraph("📈 Resumo Executivo", heading_style))
+    
+    # Calcular métricas
+    total_municipios = len(df)
+    if 'Populacao' in df.columns:
+        populacao_clean = pd.to_numeric(df['Populacao'], errors='coerce').fillna(0)
+        total_populacao = populacao_clean.sum()
+    else:
+        total_populacao = 0
+        
+    if 'Nota_Media' in df.columns:
+        nota_clean = pd.to_numeric(df['Nota_Media'], errors='coerce').fillna(0)
+        nota_media = nota_clean.mean()
+    else:
+        nota_media = 0
+        
+    if 'Valor_Municipal_Area' in df.columns:
+        valor_clean = pd.to_numeric(df['Valor_Municipal_Area'], errors='coerce').fillna(0)
+        valor_total = valor_clean.sum()
+    else:
+        valor_total = 0
+    
+    # Tabela de métricas principais
+    metrics_data = [
+        ['Métrica', 'Valor'],
+        ['Total de Municípios', f'{total_municipios:,}'],
+        ['População Total', f'{total_populacao:,.0f} habitantes'],
+        ['Nota Média Geral', f'{nota_media:.1f}'],
+        ['Valor Municipal Total', f'R$ {valor_total:,.0f}']
+    ]
+    
+    metrics_table = Table(metrics_data, colWidths=[3*inch, 3*inch])
+    metrics_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1f77b4')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 12),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+        ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+        ('GRID', (0, 0), (-1, -1), 1, colors.black)
+    ]))
+    
+    story.append(metrics_table)
+    story.append(Spacer(1, 20))
+    
+    # Top 10 Municípios por População
+    if 'Populacao' in df.columns and 'Municipio' in df.columns:
+        story.append(Paragraph("🏘️ Top 10 Municípios por População", heading_style))
+        
+        df_clean = df.copy()
+        df_clean['Populacao'] = pd.to_numeric(df_clean['Populacao'], errors='coerce').fillna(0)
+        top_pop = df_clean.nlargest(10, 'Populacao')[['Municipio', 'Populacao']]
+        
+        pop_data = [['Município', 'População']]
+        for _, row in top_pop.iterrows():
+            pop_data.append([row['Municipio'], f"{row['Populacao']:,.0f}"])
+        
+        pop_table = Table(pop_data, colWidths=[3*inch, 2*inch])
+        pop_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1f77b4')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 10),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ('FONTSIZE', (0, 1), (-1, -1), 9)
+        ]))
+        
+        story.append(pop_table)
+        story.append(Spacer(1, 20))
+    
+    # Análise por Notas
+    note_columns = [col for col in df.columns if 'Nota' in col and col != 'Nota_Media']
+    if note_columns:
+        story.append(Paragraph("⭐ Análise das Notas de Avaliação", heading_style))
+        
+        notes_data = [['Categoria', 'Média', 'Mínimo', 'Máximo']]
+        for col in note_columns[:5]:  # Limita a 5 colunas para caber na página
+            values = pd.to_numeric(df[col], errors='coerce').dropna()
+            if len(values) > 0:
+                notes_data.append([
+                    col.replace('Nota_', '').replace('_', ' '),
+                    f"{values.mean():.2f}",
+                    f"{values.min():.2f}",
+                    f"{values.max():.2f}"
+                ])
+        
+        notes_table = Table(notes_data, colWidths=[2*inch, 1.5*inch, 1.5*inch, 1.5*inch])
+        notes_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1f77b4')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 10),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ('FONTSIZE', (0, 1), (-1, -1), 9)
+        ]))
+        
+        story.append(notes_table)
+        story.append(Spacer(1, 20))
+    
+    # Nova página para valores municipais
+    story.append(PageBreak())
+    
+    # Top 10 por Valor Municipal
+    if 'Valor_Municipal_Area' in df.columns and 'Municipio' in df.columns:
+        story.append(Paragraph("💰 Top 10 Municípios por Valor Municipal", heading_style))
+        
+        df_clean = df.copy()
+        df_clean['Valor_Municipal_Area'] = pd.to_numeric(df_clean['Valor_Municipal_Area'], errors='coerce').fillna(0)
+        top_values = df_clean.nlargest(10, 'Valor_Municipal_Area')[['Municipio', 'Valor_Municipal_Area']]
+        
+        values_data = [['Município', 'Valor Municipal (R$)']]
+        for _, row in top_values.iterrows():
+            values_data.append([row['Municipio'], f"R$ {row['Valor_Municipal_Area']:,.0f}"])
+        
+        values_table = Table(values_data, colWidths=[3*inch, 3*inch])
+        values_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1f77b4')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 10),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ('FONTSIZE', (0, 1), (-1, -1), 9)
+        ]))
+        
+        story.append(values_table)
+        story.append(Spacer(1, 20))
+    
+    # Resumo estatístico
+    story.append(Paragraph("📊 Resumo Estatístico Geral", heading_style))
+    
+    numeric_cols = df.select_dtypes(include=[np.number]).columns
+    if len(numeric_cols) > 0:
+        summary_stats = df[numeric_cols].describe()
+        
+        # Seleciona apenas algumas colunas principais para o relatório
+        main_cols = []
+        for col in ['Populacao', 'Nota_Media', 'Valor_Municipal_Area']:
+            if col in summary_stats.columns:
+                main_cols.append(col)
+        
+        if main_cols:
+            stats_data = [['Estatística'] + [col.replace('_', ' ') for col in main_cols]]
+            
+            for stat in ['mean', 'std', 'min', 'max']:
+                row = [stat.title()]
+                for col in main_cols:
+                    value = summary_stats.loc[stat, col]
+                    if col == 'Populacao':
+                        row.append(f"{value:,.0f}")
+                    elif col == 'Valor_Municipal_Area':
+                        row.append(f"R$ {value:,.0f}")
+                    else:
+                        row.append(f"{value:.2f}")
+                stats_data.append(row)
+            
+            stats_table = Table(stats_data)
+            stats_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1f77b4')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 10),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                ('GRID', (0, 0), (-1, -1), 1, colors.black),
+                ('FONTSIZE', (0, 1), (-1, -1), 9)
+            ]))
+            
+            story.append(stats_table)
+    
+    # Rodapé
+    story.append(Spacer(1, 30))
+    story.append(Paragraph("📋 Relatório gerado automaticamente pelo Dashboard de Precificação", styles['Normal']))
+    story.append(Paragraph("🏘️ Dados referentes aos municípios de Alagoas", styles['Normal']))
+    
+    # Construir PDF
+    doc.build(story)
+    
+    # Retornar o buffer
+    buffer.seek(0)
+    return buffer
+
+def apply_filters(df, municipios_selecionados, busca_texto, pop_range, nota_range, valor_range, show_top_only):
+    """Aplica todos os filtros selecionados ao DataFrame"""
+    df_filtered = df.copy()
+    
+    # Filtro por municípios selecionados
+    if municipios_selecionados and 'Municipio' in df_filtered.columns:
+        df_filtered = df_filtered[df_filtered['Municipio'].isin(municipios_selecionados)]
+    
+    # Filtro por busca de texto
+    if busca_texto and 'Municipio' in df_filtered.columns:
+        df_filtered = df_filtered[
+            df_filtered['Municipio'].str.contains(busca_texto, case=False, na=False)
+        ]
+    
+    # Filtro por população
+    if 'Populacao' in df_filtered.columns:
+        pop_clean = pd.to_numeric(df_filtered['Populacao'], errors='coerce').fillna(0)
+        df_filtered = df_filtered[
+            (pop_clean >= pop_range[0]) & (pop_clean <= pop_range[1])
+        ]
+    
+    # Filtro por nota média
+    if 'Nota_Media' in df_filtered.columns:
+        nota_clean = pd.to_numeric(df_filtered['Nota_Media'], errors='coerce').fillna(0)
+        df_filtered = df_filtered[
+            (nota_clean >= nota_range[0]) & (nota_clean <= nota_range[1])
+        ]
+    
+    # Filtro por valor municipal
+    if 'Valor_Municipal_Area' in df_filtered.columns:
+        valor_clean = pd.to_numeric(df_filtered['Valor_Municipal_Area'], errors='coerce').fillna(0)
+        # Converter de milhões para valores reais
+        valor_min_real = valor_range[0] * 1000000
+        valor_max_real = valor_range[1] * 1000000
+        df_filtered = df_filtered[
+            (valor_clean >= valor_min_real) & (valor_clean <= valor_max_real)
+        ]
+    
+    # Aplicar filtros rápidos
+    if show_top_only == "Top 10 por População" and 'Populacao' in df_filtered.columns:
+        pop_clean = pd.to_numeric(df_filtered['Populacao'], errors='coerce').fillna(0)
+        df_filtered = df_filtered.nlargest(10, 'Populacao')
+    elif show_top_only == "Top 10 por Valor" and 'Valor_Municipal_Area' in df_filtered.columns:
+        valor_clean = pd.to_numeric(df_filtered['Valor_Municipal_Area'], errors='coerce').fillna(0)
+        df_filtered = df_filtered.nlargest(10, 'Valor_Municipal_Area')
+    elif show_top_only == "Top 10 por Nota" and 'Nota_Media' in df_filtered.columns:
+        nota_clean = pd.to_numeric(df_filtered['Nota_Media'], errors='coerce').fillna(0)
+        df_filtered = df_filtered.nlargest(10, 'Nota_Media')
+    
+    return df_filtered
+
+def create_scatter_analysis(df):
+    """Cria análise de correlação scatter"""
+    if 'Populacao' not in df.columns or 'Nota_Media' not in df.columns:
+        st.warning("Dados para análise de correlação não disponíveis")
+        return
+    
+    # Limpa os dados
+    df_clean = df.copy()
+    df_clean['Populacao'] = pd.to_numeric(df_clean['Populacao'], errors='coerce').fillna(0)
+    df_clean['Nota_Media'] = pd.to_numeric(df_clean['Nota_Media'], errors='coerce').fillna(0)
+    
+    # Remove registros com valores inválidos
+    df_clean = df_clean[(df_clean['Populacao'] > 0) & (df_clean['Nota_Media'] > 0)]
+    
+    if df_clean.empty:
+        st.warning("Dados insuficientes para análise de correlação")
+        return
+    
+    fig = px.scatter(
+        df_clean,
+        x='Populacao',
+        y='Nota_Media',
+        hover_data=['Municipio'],
+        title="Relação entre População e Nota Média",
+        labels={'Populacao': 'População', 'Nota_Media': 'Nota Média'},
+        color='Nota_Media',
+        color_continuous_scale='RdYlBu_r',
+        size='Populacao',
+        size_max=20
+    )
+    
+    fig.update_layout(height=500)
+    
+    return fig
+
+def create_value_analysis(df):
+    """Cria análise de valores municipais"""
+    if 'Valor_Municipal_Area' not in df.columns:
+        st.warning("Dados de valor municipal não disponíveis")
+        return
+    
+    # Limpa os dados
+    df_clean = df.copy()
+    df_clean['Valor_Municipal_Area'] = pd.to_numeric(df_clean['Valor_Municipal_Area'], errors='coerce').fillna(0)
+    
+    # Remove registros com valores inválidos
+    df_clean = df_clean[df_clean['Valor_Municipal_Area'] > 0]
+    
+    if df_clean.empty:
+        st.warning("Dados insuficientes para análise de valores")
+        return
+    
+    # Top 10 municípios por valor
+    top_values = df_clean.nlargest(10, 'Valor_Municipal_Area')
+    
+    fig = px.bar(
+        top_values,
+        x='Municipio',
+        y='Valor_Municipal_Area',
+        title="Top 10 Municípios por Valor Municipal (Área)",
+        labels={'Valor_Municipal_Area': 'Valor Municipal (R$)', 'Municipio': 'Município'},
+        color='Valor_Municipal_Area',
+        color_continuous_scale='Greens'
+    )
+    
+    fig.update_layout(
+        height=500,
+        xaxis_tickangle=-45,
+        showlegend=False
+    )
+    
+    return fig
+
+def main():
+    # Header principal
+    st.markdown('<h1 class="main-header">🏘️ Dashboard de Precificação - Municípios de Alagoas</h1>', unsafe_allow_html=True)
+    
+    # Carrega os dados primeiro
+    df = load_data()
+    
+    if df.empty:
+        st.error("❌ Não foi possível carregar os dados. Verifique se o arquivo CSV está no diretório correto.")
+        return
+    
+    # Inicializar valores padrão no session_state se não existirem
+    if 'municipios_selecionados' not in st.session_state:
+        st.session_state.municipios_selecionados = []
+    if 'busca_texto' not in st.session_state:
+        st.session_state.busca_texto = ""
+    if 'show_top_only' not in st.session_state:
+        st.session_state.show_top_only = "Todos os municípios"
+    
+    # Sidebar
+    with st.sidebar:
+        st.markdown('<div class="sidebar-info">', unsafe_allow_html=True)
+        st.markdown("### 📊 Dashboard de Precificação")
+        st.markdown("""
+        Análise completa dos valores municipais de Alagoas:
+        
+        - 💰 **Valores por Área**: Análise dos valores municipais por área total
+        - 📏 **Valores por Perímetro**: Análise dos valores por perímetro municipal  
+        - 🏆 **Rankings**: Classificação dos municípios por valor
+        - 📊 **Distribuições**: Análise estatística dos preços
+        - 💹 **Comparações**: Relações entre diferentes métricas de valor
+        """)
+        st.markdown('</div>', unsafe_allow_html=True)
+        
+        # Filtros
+        st.markdown("### 🔍 Filtros de Precificação")
+        
+        # Filtro por nome da cidade
+        st.markdown("**📍 Seleção de Municípios**")
+        municipios_lista = sorted(df['Municipio'].unique()) if 'Municipio' in df.columns else []
+        municipios_selecionados = st.multiselect(
+            "Escolha municípios específicos:",
+            options=municipios_lista,
+            placeholder="Todos os municípios incluídos",
+            key="municipios_selecionados"
+        )
+        
+        # Filtro por busca de texto
+        busca_texto = st.text_input(
+            "🔍 Busca rápida por nome:",
+            placeholder="Ex: Maceió, Arapiraca...",
+            key="busca_texto"
+        )
+        
+        # Filtro por faixa de população
+        if 'Populacao' in df.columns:
+            st.markdown("**👥 Filtro por População**")
+            pop_clean = pd.to_numeric(df['Populacao'], errors='coerce').fillna(0)
+            pop_min, pop_max = int(pop_clean.min()), int(pop_clean.max())
+            
+            pop_range = st.slider(
+                "Faixa de população:",
+                min_value=pop_min,
+                max_value=pop_max,
+                value=(pop_min, pop_max),
+                step=1000,
+                format="%d",
+                key="pop_range"
+            )
+        
+        # Filtro por notas
+        if 'Nota_Media' in df.columns:
+            st.markdown("**⭐ Filtro por Nota Média**")
+            nota_clean = pd.to_numeric(df['Nota_Media'], errors='coerce').fillna(0)
+            nota_min, nota_max = float(nota_clean.min()), float(nota_clean.max())
+            
+            nota_range = st.slider(
+                "Faixa de nota média:",
+                min_value=nota_min,
+                max_value=nota_max,
+                value=(nota_min, nota_max),
+                step=0.1,
+                format="%.1f",
+                key="nota_range"
+            )
+        
+        # Filtro por valor municipal (área)
+        if 'Valor Mun Area' in df.columns:
+            st.markdown("**💰 Faixa de Valor por Área**")
+            area_values = df['Valor Mun Area'].apply(clean_brazilian_number)
+            area_valid = area_values.dropna()
+            
+            if not area_valid.empty:
+                valor_min, valor_max = float(area_valid.min()), float(area_valid.max())
+                
+                # Usar valores em bilhões para facilitar a visualização
+                valor_min_bi = valor_min / 1_000_000_000
+                valor_max_bi = valor_max / 1_000_000_000
+                
+                valor_range = st.slider(
+                    "Valor por área (R$ bilhões):",
+                    min_value=valor_min_bi,
+                    max_value=valor_max_bi,
+                    value=(valor_min_bi, valor_max_bi),
+                    step=1.0,
+                    format="%.1f",
+                    key="valor_range"
+                )
+            else:
+                valor_range = (0, 0)
+        else:
+            valor_range = (0, 0)
+        
+        # Filtro por valor municipal (perímetro)
+        if 'Valor Mun Perim' in df.columns:
+            st.markdown("**📏 Faixa de Valor por Perímetro**")
+            perim_values = df['Valor Mun Perim'].apply(clean_brazilian_number)
+            perim_valid = perim_values.dropna()
+            
+            if not perim_valid.empty:
+                perim_min, perim_max = float(perim_valid.min()), float(perim_valid.max())
+                
+                # Usar valores em milhões para perímetro
+                perim_min_mi = perim_min / 1_000_000
+                perim_max_mi = perim_max / 1_000_000
+                
+                perim_range = st.slider(
+                    "Valor por perímetro (R$ milhões):",
+                    min_value=perim_min_mi,
+                    max_value=perim_max_mi,
+                    value=(perim_min_mi, perim_max_mi),
+                    step=0.5,
+                    format="%.1f",
+                    key="perim_range"
+                )
+            else:
+                perim_range = (0, 0)
+        else:
+            perim_range = (0, 0)
+        
+        # Filtros de análise rápida
+        st.markdown("**🎯 Análises Rápidas**")
+        show_top_only = st.selectbox(
+            "Tipo de análise:",
+            options=["Todos os municípios", "🏆 Top 10 por Valor (Área)", "📏 Top 10 por Valor (Perímetro)", "💎 Top 5 Premium", "💚 Valores Baixos"],
+            index=0,
+            key="show_top_only"
+        )
+        
+        # Botão para limpar filtros
+        if st.button("🗑️ Limpar Filtros", type="secondary"):
+            # Limpa todas as variáveis do session_state relacionadas aos filtros
+            keys_to_clear = [
+                'municipios_selecionados', 'busca_texto', 'pop_range', 
+                'nota_range', 'valor_range', 'show_top_only'
+            ]
+            for key in keys_to_clear:
+                if key in st.session_state:
+                    del st.session_state[key]
+            st.rerun()
+        
+        # Resumo dos filtros ativos
+        st.markdown("---")
+        st.markdown("**📋 Filtros Ativos:**")
+        filtros_ativos = []
+        
+        if municipios_selecionados:
+            filtros_ativos.append(f"🏘️ {len(municipios_selecionados)} município(s)")
+        if busca_texto:
+            filtros_ativos.append(f"🔍 Busca: '{busca_texto}'")
+        if show_top_only != "Todos os municípios":
+            filtros_ativos.append(f"🎯 {show_top_only}")
+            
+        if filtros_ativos:
+            for filtro in filtros_ativos:
+                st.markdown(f"• {filtro}")
+        else:
+            st.markdown("• Nenhum filtro ativo")
+        
+        # Sugestões de análise
+        with st.expander("💡 Sugestões de Análise"):
+            st.markdown("""
+            **🎯 Análises Recomendadas:**
+            - 💎 **Premium**: Valores > R$ 25 bilhões (área)
+            - 🧡 **Alto valor**: R$ 15-25 bilhões (área)
+            - 💛 **Médio valor**: R$ 5-15 bilhões (área)
+            - 💚 **Valor acessível**: < R$ 5 bilhões (área)
+            
+            **📊 Comparações Úteis:**
+            - Relação área vs perímetro
+            - Densidade de valor por km²
+            - Análise regional (norte/sul de AL)
+            
+            **🔍 Dica**: Use busca para municípios específicos ou aplique filtros por faixa de valores!
+            """)
+        
+    # Aplica filtros
+    df_original = df.copy()  # Manter cópia original para estatísticas
+    
+    # Obter valores dos filtros do session_state ou valores padrão
+    municipios_selecionados = st.session_state.get('municipios_selecionados', [])
+    busca_texto = st.session_state.get('busca_texto', "")
+    show_top_only = st.session_state.get('show_top_only', "Todos os municípios")
+    
+    # Valores padrão para ranges baseados nos dados
+    if 'Populacao' in df.columns:
+        pop_clean = pd.to_numeric(df['Populacao'], errors='coerce').fillna(0)
+        pop_min, pop_max = int(pop_clean.min()), int(pop_clean.max())
+        pop_range_val = st.session_state.get('pop_range', (pop_min, pop_max))
+    else:
+        pop_range_val = (0, 0)
+    
+    if 'Nota_Media' in df.columns:
+        nota_clean = pd.to_numeric(df['Nota_Media'], errors='coerce').fillna(0)
+        nota_min, nota_max = float(nota_clean.min()), float(nota_clean.max())
+        nota_range_val = st.session_state.get('nota_range', (nota_min, nota_max))
+    else:
+        nota_range_val = (0, 0)
+    
+    if 'Valor_Municipal_Area' in df.columns:
+        valor_clean = pd.to_numeric(df['Valor_Municipal_Area'], errors='coerce').fillna(0)
+        valor_min, valor_max = float(valor_clean.min()), float(valor_clean.max())
+        valor_min_mi, valor_max_mi = valor_min / 1000000, valor_max / 1000000
+        valor_range_val = st.session_state.get('valor_range', (valor_min_mi, valor_max_mi))
+    else:
+        valor_range_val = (0, 0)
+    
+    df_filtered = apply_filters(
+        df, 
+        municipios_selecionados, 
+        busca_texto, 
+        pop_range_val, 
+        nota_range_val, 
+        valor_range_val, 
+        show_top_only
+    )
+    
+    # Verificar se há dados após filtros
+    if df_filtered.empty:
+        st.warning("⚠️ Nenhum município corresponde aos filtros aplicados. Tente ajustar os critérios.")
+        df_filtered = df_original  # Usar dados originais se filtros resultarem em conjunto vazio
+    
+    # Mostrar informações sobre filtros aplicados
+    if len(df_filtered) != len(df_original):
+        col1, col2 = st.columns(2)
+        with col1:
+            st.info(f"📊 Exibindo **{len(df_filtered)}** de **{len(df_original)}** municípios")
+        with col2:
+            percentual = (len(df_filtered) / len(df_original)) * 100
+            st.info(f"📈 Representa **{percentual:.1f}%** do total")
+    
+    # Usar dados filtrados para todas as visualizações
+    df = df_filtered
+    
+    # Métricas de visão geral
+    st.markdown("## 📈 Visão Geral")
+    create_overview_metrics(df)
+    
+    # Botão de exportação PDF
+    st.markdown("---")
+    col1, col2, col3 = st.columns([1, 1, 1])
+    with col2:
+        if st.button("📄 Gerar Relatório PDF", type="primary"):
+            with st.spinner("Gerando relatório PDF..."):
+                try:
+                    # Usar dados filtrados para o relatório
+                    pdf_buffer = generate_pdf_report(df)
+                    
+                    # Gerar nome do arquivo com timestamp e info de filtros
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    if len(df) != len(df_original):
+                        filename = f"relatorio_precificacao_alagoas_filtrado_{len(df)}municipios_{timestamp}.pdf"
+                    else:
+                        filename = f"relatorio_precificacao_alagoas_{timestamp}.pdf"
+                    
+                    st.download_button(
+                        label="⬇️ Download do Relatório PDF",
+                        data=pdf_buffer.getvalue(),
+                        file_name=filename,
+                        mime="application/pdf",
+                        type="primary"
+                    )
+                    
+                    if len(df) != len(df_original):
+                        st.success(f"✅ Relatório PDF gerado com dados filtrados ({len(df)} municípios)!")
+                    else:
+                        st.success("✅ Relatório PDF gerado com sucesso!")
+                    
+                except Exception as e:
+                    st.error(f"❌ Erro ao gerar relatório: {str(e)}")
+    
+    st.markdown("---")
+    
+    # Tabs para diferentes análises focadas em precificação
+    tab1, tab2, tab3, tab4 = st.tabs(["🗺️ Mapa Interativo", "🏆 Ranking de Valores", "📊 Análise Comparativa", "📈 Distribuição de Preços"])
+    
+    with tab1:
+        st.markdown("### 🗺️ Mapa Interativo dos Municípios")
+        st.markdown("Visualize os municípios de Alagoas com dados de precificação. As cores dos marcadores representam diferentes faixas de valores.")
+        
+        # Criar e exibir o mapa
+        if 'Valor_Municipal_Area' in df_filtered.columns:
+            try:
+                interactive_map = create_interactive_map(df_filtered)
+                st_folium(interactive_map, width=700, height=500)
+                
+                # Estatísticas do mapa
+                st.markdown("#### 📊 Estatísticas do Mapa")
+                col1, col2, col3 = st.columns(3)
+                
+                with col1:
+                    total_municipios = len(df_filtered)
+                    st.metric("�️ Total de Municípios", total_municipios)
+                
+                with col2:
+                    if 'Valor_Municipal_Area' in df_filtered.columns:
+                        valor_total = df_filtered['Valor_Municipal_Area'].sum()
+                        st.metric("💰 Valor Total", f"R$ {valor_total:,.0f}")
+                
+                with col3:
+                    if 'Populacao' in df_filtered.columns:
+                        pop_total = df_filtered['Populacao'].sum()
+                        st.metric("👥 População Total", f"{pop_total:,}")
+                
+            except Exception as e:
+                st.error(f"❌ Erro ao carregar o mapa: {str(e)}")
+                st.info("💡 Dica: Certifique-se de que os dados de localização estão disponíveis.")
+        else:
+            st.warning("⚠️ Dados de valor municipal não disponíveis para o mapa.")
+
+    with tab2:
+        st.markdown("### �🏆 Ranking dos Municípios por Valor")
+        
+        col1, col2 = st.columns([2, 1])
+        
+        with col1:
+            fig_ranking = create_value_ranking_chart(df_filtered)
+            if fig_ranking:
+                st.plotly_chart(fig_ranking, use_container_width=True)
+        
+        with col2:
+            st.markdown("#### 📈 Estatísticas")
+            if 'Valor Mun Area' in df_filtered.columns:
+                valores_clean = df_filtered['Valor Mun Area'].apply(clean_brazilian_number)
+                valores_valid = valores_clean.dropna()
+                
+                if not valores_valid.empty:
+                    st.metric("💰 Maior Valor", f"R$ {valores_valid.max()/1_000_000_000:.1f}B")
+                    st.metric("📊 Valor Médio", f"R$ {valores_valid.mean()/1_000_000_000:.1f}B") 
+                    st.metric("📉 Menor Valor", f"R$ {valores_valid.min()/1_000_000:.0f}M")
+                    st.metric("🎯 Total Geral", f"R$ {valores_valid.sum()/1_000_000_000:.1f}B")
+        
+        # Tabela detalhada
+        st.markdown("### 📋 Dados Detalhados")
+        if 'Municipio' in df_filtered.columns and 'Valor Mun Area' in df_filtered.columns:
+            display_df = df_filtered[['Municipio', 'Valor Mun Area', 'Valor Mun Perim']].copy()
+            display_df['Valor_Area_Limpo'] = display_df['Valor Mun Area'].apply(clean_brazilian_number)
+            display_df['Valor_Perim_Limpo'] = display_df['Valor Mun Perim'].apply(clean_brazilian_number)
+            display_df = display_df.sort_values('Valor_Area_Limpo', ascending=False)
+            
+            # Formata para exibição
+            display_df['Valor Área (R$ Mi)'] = (display_df['Valor_Area_Limpo'] / 1_000_000).round(1)
+            display_df['Valor Perímetro (R$ Mi)'] = (display_df['Valor_Perim_Limpo'] / 1_000_000).round(2)
+            
+            final_df = display_df[['Municipio', 'Valor Área (R$ Mi)', 'Valor Perímetro (R$ Mi)']]
+            st.dataframe(final_df, use_container_width=True)
+
+    with tab3:
+        st.markdown("### 💹 Análise: Valor vs População")
+        
+        fig_comparison = create_value_per_population_chart(df_filtered)
+        if fig_comparison:
+            st.plotly_chart(fig_comparison, use_container_width=True)
+        
+        # Análise de correlação específica
+        st.markdown("### 🔗 Correlação entre Valores")
+        if 'Valor Mun Area' in df_filtered.columns and 'Valor Mun Perim' in df_filtered.columns:
+            area_clean = df_filtered['Valor Mun Area'].apply(clean_brazilian_number)
+            perim_clean = df_filtered['Valor Mun Perim'].apply(clean_brazilian_number)
+            
+            valid_data = pd.DataFrame({
+                'Area': area_clean,
+                'Perimetro': perim_clean
+            }).dropna()
+            
+            if len(valid_data) > 1:
+                correlation = valid_data['Area'].corr(valid_data['Perimetro'])
+                
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("🔗 Correlação", f"{correlation:.3f}")
+                with col2:
+                    st.metric("📊 Dados Válidos", f"{len(valid_data)}")
+                with col3:
+                    ratio_medio = (valid_data['Area'] / valid_data['Perimetro']).mean()
+                    st.metric("⚖️ Ratio Médio (Área/Perímetro)", f"{ratio_medio:.0f}")
+    
+    with tab4:
+        st.markdown("### 📊 Distribuição de Preços por Área")
+        
+        fig_distribution = create_price_distribution_chart(df_filtered)
+        if fig_distribution:
+            st.plotly_chart(fig_distribution, use_container_width=True)
+        
+        # Faixas de preço
+        st.markdown("### 💼 Análise por Faixas de Preço")
+        if 'Valor Mun Area' in df_filtered.columns:
+            valores_clean = df_filtered['Valor Mun Area'].apply(clean_brazilian_number)
+            valores_valid = valores_clean.dropna()
+            
+            if not valores_valid.empty:
+                # Converte para bilhões
+                valores_bi = valores_valid / 1_000_000_000
+                
+                # Define faixas
+                faixas = {
+                    "💚 Baixo (< 5B)": (valores_bi < 5).sum(),
+                    "💛 Médio (5B - 15B)": ((valores_bi >= 5) & (valores_bi < 15)).sum(),
+                    "🧡 Alto (15B - 25B)": ((valores_bi >= 15) & (valores_bi < 25)).sum(),
+                    "❤️ Premium (≥ 25B)": (valores_bi >= 25).sum()
+                }
+                
+                col1, col2, col3, col4 = st.columns(4)
+                cols = [col1, col2, col3, col4]
+                
+                for i, (faixa, count) in enumerate(faixas.items()):
+                    with cols[i]:
+                        percentage = (count / len(valores_bi) * 100) if len(valores_bi) > 0 else 0
+                        st.metric(faixa, f"{count}", f"{percentage:.1f}%")
+            
+            # Limpa os dados financeiros
+            valor_clean = pd.to_numeric(df['Valor_Municipal_Area'], errors='coerce').fillna(0)
+            
+            with col1:
+                st.metric("Valor Médio", f"R$ {valor_clean.mean():,.0f}")
+            with col2:
+                st.metric("Valor Máximo", f"R$ {valor_clean.max():,.0f}")
+            with col3:
+                st.metric("Valor Mínimo", f"R$ {valor_clean.min():,.0f}")
+    
+                st.info("💡 Dica: Certifique-se de que os dados de localização estão disponíveis.")
+        else:
+            st.warning("⚠️ Dados de valor municipal não disponíveis para o mapa.")
+    
+    # Footer
+    st.markdown("---")
+    st.markdown("### 📋 Dados Completos")
+    st.dataframe(df, width='stretch')
+    
+    # Informações técnicas
+    with st.expander("ℹ️ Informações Técnicas"):
+        st.markdown(f"""
+        **Fonte dos dados:** CSV de Precificação - Municípios de Alagoas
+        
+        **Total de registros:** {len(df)}
+        
+        **Colunas disponíveis:** {len(df.columns)}
+        
+        **Última atualização:** {pd.Timestamp.now().strftime('%d/%m/%Y %H:%M')}
+        """)
+
+if __name__ == "__main__":
+    main()
