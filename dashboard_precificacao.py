@@ -634,16 +634,32 @@ def create_interactive_map(df):
                 )
             ).add_to(m)
     
-    # Adicionar legenda
+    # Adicionar legenda com melhor formatação
     legend_html = '''
     <div style="position: fixed; 
-                bottom: 50px; left: 50px; width: 200px; height: 120px; 
-                background-color: white; border:2px solid grey; z-index:9999; 
-                font-size:14px; padding: 10px">
-    <p><b>Legenda - Valores (Área)</b></p>
-    <p><i class="fa fa-circle" style="color:green"></i> Valores Baixos (até 33%)</p>
-    <p><i class="fa fa-circle" style="color:orange"></i> Valores Médios (33% - 66%)</p>
-    <p><i class="fa fa-circle" style="color:red"></i> Valores Altos (66% - 100%)</p>
+                bottom: 20px; left: 20px; width: 250px; height: auto; min-height: 140px;
+                background-color: white; border: 2px solid #333; z-index: 9999; 
+                font-size: 13px; padding: 12px; border-radius: 8px;
+                box-shadow: 0 2px 10px rgba(0,0,0,0.3); font-family: Arial, sans-serif;
+                color: #333;">
+    <p style="margin: 0 0 8px 0; font-weight: bold; color: #333; font-size: 14px;">
+        📊 Legenda - Valores (Área)
+    </p>
+    <p style="margin: 4px 0; color: #333; display: flex; align-items: center;">
+        <span style="display: inline-block; width: 12px; height: 12px; 
+                     background-color: green; border-radius: 50%; margin-right: 8px;"></span>
+        <span style="color: #333;">Valores Baixos (até 33%)</span>
+    </p>
+    <p style="margin: 4px 0; color: #333; display: flex; align-items: center;">
+        <span style="display: inline-block; width: 12px; height: 12px; 
+                     background-color: orange; border-radius: 50%; margin-right: 8px;"></span>
+        <span style="color: #333;">Valores Médios (33% - 66%)</span>
+    </p>
+    <p style="margin: 4px 0; color: #333; display: flex; align-items: center;">
+        <span style="display: inline-block; width: 12px; height: 12px; 
+                     background-color: red; border-radius: 50%; margin-right: 8px;"></span>
+        <span style="color: #333;">Valores Altos (66% - 100%)</span>
+    </p>
     </div>
     '''
     m.get_root().html.add_child(folium.Element(legend_html))
