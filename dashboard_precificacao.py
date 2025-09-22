@@ -922,9 +922,9 @@ def apply_filters(df, municipios_selecionados, busca_texto, pop_range, nota_rang
     # Filtro por valor municipal
     if 'Valor_Municipal_Area' in df_filtered.columns:
         valor_clean = pd.to_numeric(df_filtered['Valor_Municipal_Area'], errors='coerce').fillna(0)
-        # Converter de milhões para valores reais
-        valor_min_real = valor_range[0] * 1000000
-        valor_max_real = valor_range[1] * 1000000
+        # Converter de bilhões para valores reais (valor_range está em bilhões)
+        valor_min_real = valor_range[0] * 1_000_000_000
+        valor_max_real = valor_range[1] * 1_000_000_000
         df_filtered = df_filtered[
             (valor_clean >= valor_min_real) & (valor_clean <= valor_max_real)
         ]
@@ -1104,8 +1104,9 @@ def main():
         # Filtro por valor municipal (área)
         if 'Valor_Municipal_Area' in df.columns:
             st.markdown("**💰 Faixa de Valor por Área**")
-            area_values = df['Valor_Municipal_Area'].apply(clean_brazilian_number)
-            area_valid = area_values.dropna()
+            # Os dados já foram processados na load_data(), então usamos diretamente
+            area_values = pd.to_numeric(df['Valor_Municipal_Area'], errors='coerce').fillna(0)
+            area_valid = area_values[area_values > 0]  # Remove zeros
             
             if not area_valid.empty:
                 valor_min, valor_max = float(area_valid.min()), float(area_valid.max())
@@ -1131,8 +1132,9 @@ def main():
         # Filtro por valor municipal (perímetro)
         if 'Valor_Municipal_Perimetro' in df.columns:
             st.markdown("**📏 Faixa de Valor por Perímetro**")
-            perim_values = df['Valor_Municipal_Perimetro'].apply(clean_brazilian_number)
-            perim_valid = perim_values.dropna()
+            # Os dados já foram processados na load_data(), então usamos diretamente
+            perim_values = pd.to_numeric(df['Valor_Municipal_Perimetro'], errors='coerce').fillna(0)
+            perim_valid = perim_values[perim_values > 0]  # Remove zeros
             
             if not perim_valid.empty:
                 perim_min, perim_max = float(perim_valid.min()), float(perim_valid.max())
@@ -1235,10 +1237,16 @@ def main():
         nota_range_val = (0, 0)
     
     if 'Valor_Municipal_Area' in df.columns:
+        # Os dados já foram processados, usamos diretamente
         valor_clean = pd.to_numeric(df['Valor_Municipal_Area'], errors='coerce').fillna(0)
-        valor_min, valor_max = float(valor_clean.min()), float(valor_clean.max())
-        valor_min_mi, valor_max_mi = valor_min / 1000000, valor_max / 1000000
-        valor_range_val = st.session_state.get('valor_range', (valor_min_mi, valor_max_mi))
+        valor_valid = valor_clean[valor_clean > 0]
+        if not valor_valid.empty:
+            valor_min, valor_max = float(valor_valid.min()), float(valor_valid.max())
+            # Usar bilhões para ser consistente com o slider
+            valor_min_bi, valor_max_bi = valor_min / 1_000_000_000, valor_max / 1_000_000_000
+            valor_range_val = st.session_state.get('valor_range', (valor_min_bi, valor_max_bi))
+        else:
+            valor_range_val = (0, 0)
     else:
         valor_range_val = (0, 0)
     
