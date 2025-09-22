@@ -1102,9 +1102,9 @@ def main():
             )
         
         # Filtro por valor municipal (área)
-        if 'Valor Mun Area' in df.columns:
+        if 'Valor_Municipal_Area' in df.columns:
             st.markdown("**💰 Faixa de Valor por Área**")
-            area_values = df['Valor Mun Area'].apply(clean_brazilian_number)
+            area_values = df['Valor_Municipal_Area'].apply(clean_brazilian_number)
             area_valid = area_values.dropna()
             
             if not area_valid.empty:
@@ -1129,9 +1129,9 @@ def main():
             valor_range = (0, 0)
         
         # Filtro por valor municipal (perímetro)
-        if 'Valor Mun Perim' in df.columns:
+        if 'Valor_Municipal_Perimetro' in df.columns:
             st.markdown("**📏 Faixa de Valor por Perímetro**")
-            perim_values = df['Valor Mun Perim'].apply(clean_brazilian_number)
+            perim_values = df['Valor_Municipal_Perimetro'].apply(clean_brazilian_number)
             perim_valid = perim_values.dropna()
             
             if not perim_valid.empty:
@@ -1357,8 +1357,8 @@ def main():
         
         with col2:
             st.markdown("#### 📈 Estatísticas")
-            if 'Valor Mun Area' in df_filtered.columns:
-                valores_clean = df_filtered['Valor Mun Area'].apply(clean_brazilian_number)
+            if 'Valor_Municipal_Area' in df_filtered.columns:
+                valores_clean = df_filtered['Valor_Municipal_Area'].apply(clean_brazilian_number)
                 valores_valid = valores_clean.dropna()
                 
                 if not valores_valid.empty:
@@ -1366,13 +1366,15 @@ def main():
                     st.metric("📊 Valor Médio", f"R$ {valores_valid.mean()/1_000_000_000:.1f}B") 
                     st.metric("📉 Menor Valor", f"R$ {valores_valid.min()/1_000_000:.0f}M")
                     st.metric("🎯 Total Geral", f"R$ {valores_valid.sum()/1_000_000_000:.1f}B")
+                else:
+                    st.info("📊 Nenhum dado de valor disponível para os filtros aplicados")
         
         # Tabela detalhada
         st.markdown("### 📋 Dados Detalhados")
-        if 'Municipio' in df_filtered.columns and 'Valor Mun Area' in df_filtered.columns:
-            display_df = df_filtered[['Municipio', 'Valor Mun Area', 'Valor Mun Perim']].copy()
-            display_df['Valor_Area_Limpo'] = display_df['Valor Mun Area'].apply(clean_brazilian_number)
-            display_df['Valor_Perim_Limpo'] = display_df['Valor Mun Perim'].apply(clean_brazilian_number)
+        if 'Municipio' in df_filtered.columns and 'Valor_Municipal_Area' in df_filtered.columns:
+            display_df = df_filtered[['Municipio', 'Valor_Municipal_Area', 'Valor_Municipal_Perimetro']].copy()
+            display_df['Valor_Area_Limpo'] = display_df['Valor_Municipal_Area'].apply(clean_brazilian_number)
+            display_df['Valor_Perim_Limpo'] = display_df['Valor_Municipal_Perimetro'].apply(clean_brazilian_number)
             display_df = display_df.sort_values('Valor_Area_Limpo', ascending=False)
             
             # Formata para exibição
@@ -1391,9 +1393,9 @@ def main():
         
         # Análise de correlação específica
         st.markdown("### 🔗 Correlação entre Valores")
-        if 'Valor Mun Area' in df_filtered.columns and 'Valor Mun Perim' in df_filtered.columns:
-            area_clean = df_filtered['Valor Mun Area'].apply(clean_brazilian_number)
-            perim_clean = df_filtered['Valor Mun Perim'].apply(clean_brazilian_number)
+        if 'Valor_Municipal_Area' in df_filtered.columns and 'Valor_Municipal_Perimetro' in df_filtered.columns:
+            area_clean = df_filtered['Valor_Municipal_Area'].apply(clean_brazilian_number)
+            perim_clean = df_filtered['Valor_Municipal_Perimetro'].apply(clean_brazilian_number)
             
             valid_data = pd.DataFrame({
                 'Area': area_clean,
@@ -1421,8 +1423,8 @@ def main():
         
         # Faixas de preço
         st.markdown("### 💼 Análise por Faixas de Preço")
-        if 'Valor Mun Area' in df_filtered.columns:
-            valores_clean = df_filtered['Valor Mun Area'].apply(clean_brazilian_number)
+        if 'Valor_Municipal_Area' in df_filtered.columns:
+            valores_clean = df_filtered['Valor_Municipal_Area'].apply(clean_brazilian_number)
             valores_valid = valores_clean.dropna()
             
             if not valores_valid.empty:
