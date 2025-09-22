@@ -666,6 +666,395 @@ def create_interactive_map(df):
     
     return m
 
+def create_query_builder_interface(df):
+    """Interface de Query Builder similar ao Metabase"""
+    
+    st.markdown("### 🤖 Construtor de Consultas Inteligente")
+    st.markdown("""
+    <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                padding: 20px; border-radius: 10px; color: white; margin-bottom: 20px;">
+    <h4 style="color: white; margin: 0;">💡 Como Usar o Query Builder</h4>
+    <p style="margin: 5px 0; color: white;">
+    Monte sua própria consulta escolhendo <b>o que visualizar</b>, <b>como agrupar</b> e <b>quais filtros aplicar</b>.
+    Ideal para análises personalizadas sem precisar de conhecimento técnico!
+    </p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Interface principal dividida em 3 seções
+    col1, col2, col3 = st.columns([1, 1, 1])
+    
+    with col1:
+        st.markdown("#### 📊 1. O que Mostrar?")
+        
+        # Seleção do tipo de visualização
+        viz_type = st.selectbox(
+            "Tipo de Visualização:",
+            ["📈 Gráfico de Barras", "📊 Tabela Detalhada", "🥧 Gráfico de Pizza", 
+             "📉 Linha do Tempo", "🎯 Métricas (Cards)", "🗺️ Dados Geográficos"],
+            key="qb_viz_type"
+        )
+        
+        # Seleção das colunas a mostrar
+        available_columns = {
+            'Municipio': 'Nome do Município',
+            'Populacao': 'População',
+            'Valor_Municipal_Area': 'Valor por Área (R$)',
+            'Valor_Municipal_Perimetro': 'Valor por Perímetro (R$)',
+            'Nota_Media': 'Nota Média',
+            'Nota_Vegetacao': 'Nota Vegetação',
+            'Nota_Area': 'Nota Área',
+            'Nota_Relevo': 'Nota Relevo',
+            'Area_Cidade': 'Área da Cidade',
+            'Num_Imoveis': 'Número de Imóveis'
+        }
+        
+        # Filtrar colunas disponíveis baseado no que existe no DataFrame
+        available_cols = {k: v for k, v in available_columns.items() if k in df.columns}
+        
+        selected_columns = st.multiselect(
+            "Dados para Mostrar:",
+            options=list(available_cols.keys()),
+            format_func=lambda x: available_cols[x],
+            default=['Municipio', 'Valor_Municipal_Area'] if all(col in df.columns for col in ['Municipio', 'Valor_Municipal_Area']) else list(available_cols.keys())[:2],
+            key="qb_columns"
+        )
+        
+    with col2:
+        st.markdown("#### 🔧 2. Como Agrupar?")
+        
+        # Agrupamento
+        group_option = st.selectbox(
+            "Agrupar Dados Por:",
+            ["Sem Agrupamento", "Por Faixa de População", "Por Faixa de Nota", 
+             "Por Faixa de Valor", "Por Região (Alfabética)", "Por Quartis"],
+            key="qb_group"
+        )
+        
+        # Ordenação
+        if selected_columns:
+            sort_column = st.selectbox(
+                "Ordenar Por:",
+                options=selected_columns,
+                format_func=lambda x: available_cols.get(x, x),
+                key="qb_sort_col"
+            )
+            
+            sort_order = st.radio(
+                "Ordem:",
+                ["Crescente (A→Z, 1→∞)", "Decrescente (Z→A, ∞→1)"],
+                key="qb_sort_order"
+            )
+        else:
+            sort_column = None
+            sort_order = "Crescente (A→Z, 1→∞)"
+            
+        # Limite de resultados
+        limit_results = st.checkbox("Limitar Resultados", value=False, key="qb_limit")
+        if limit_results:
+            max_results = st.slider("Máximo de Resultados:", 5, 50, 10, key="qb_max_results")
+        else:
+            max_results = None
+    
+    with col3:
+        st.markdown("#### 🎯 3. Quais Filtros?")
+        
+        # Filtros personalizados
+        st.markdown("**Filtros Personalizados:**")
+        
+        # Filtro por população
+        if 'Populacao' in df.columns:
+            pop_filter = st.checkbox("Filtrar por População", key="qb_pop_filter")
+            if pop_filter:
+                pop_clean = pd.to_numeric(df['Populacao'], errors='coerce').fillna(0)
+                pop_min, pop_max = int(pop_clean.min()), int(pop_clean.max())
+                pop_range_qb = st.slider(
+                    "Faixa de População:",
+                    min_value=pop_min, max_value=pop_max,
+                    value=(pop_min, pop_max), key="qb_pop_range"
+                )
+            else:
+                pop_range_qb = None
+        else:
+            pop_filter = False
+            pop_range_qb = None
+            
+        # Filtro por valor
+        if 'Valor_Municipal_Area' in df.columns:
+            valor_filter = st.checkbox("Filtrar por Valor", key="qb_valor_filter")
+            if valor_filter:
+                valor_clean = pd.to_numeric(df['Valor_Municipal_Area'], errors='coerce').fillna(0)
+                valor_valid = valor_clean[valor_clean > 0]
+                if not valor_valid.empty:
+                    valor_min_bi = valor_valid.min() / 1_000_000_000
+                    valor_max_bi = valor_valid.max() / 1_000_000_000
+                    valor_range_qb = st.slider(
+                        "Faixa de Valor (R$ bilhões):",
+                        min_value=float(valor_min_bi), max_value=float(valor_max_bi),
+                        value=(float(valor_min_bi), float(valor_max_bi)), 
+                        step=0.5, key="qb_valor_range"
+                    )
+                else:
+                    valor_range_qb = None
+            else:
+                valor_range_qb = None
+        else:
+            valor_filter = False
+            valor_range_qb = None
+            
+        # Filtro por nota
+        if 'Nota_Media' in df.columns:
+            nota_filter = st.checkbox("Filtrar por Nota", key="qb_nota_filter")
+            if nota_filter:
+                nota_clean = pd.to_numeric(df['Nota_Media'], errors='coerce').fillna(0)
+                nota_min, nota_max = float(nota_clean.min()), float(nota_clean.max())
+                nota_range_qb = st.slider(
+                    "Faixa de Nota:",
+                    min_value=nota_min, max_value=nota_max,
+                    value=(nota_min, nota_max), 
+                    step=0.1, key="qb_nota_range"
+                )
+            else:
+                nota_range_qb = None
+        else:
+            nota_filter = False
+            nota_range_qb = None
+    
+    st.markdown("---")
+    
+    # Botão para executar consulta
+    col1, col2, col3 = st.columns([1, 1, 1])
+    with col2:
+        execute_query = st.button("🚀 Executar Consulta", type="primary", key="execute_qb")
+    
+    if execute_query or st.session_state.get('auto_execute_qb', False):
+        if selected_columns:
+            try:
+                # Aplicar filtros
+                filtered_df = df.copy()
+                
+                if pop_filter and pop_range_qb:
+                    pop_clean = pd.to_numeric(filtered_df['Populacao'], errors='coerce').fillna(0)
+                    filtered_df = filtered_df[(pop_clean >= pop_range_qb[0]) & (pop_clean <= pop_range_qb[1])]
+                
+                if valor_filter and valor_range_qb:
+                    valor_clean = pd.to_numeric(filtered_df['Valor_Municipal_Area'], errors='coerce').fillna(0)
+                    valor_min_real = valor_range_qb[0] * 1_000_000_000
+                    valor_max_real = valor_range_qb[1] * 1_000_000_000
+                    filtered_df = filtered_df[(valor_clean >= valor_min_real) & (valor_clean <= valor_max_real)]
+                
+                if nota_filter and nota_range_qb:
+                    nota_clean = pd.to_numeric(filtered_df['Nota_Media'], errors='coerce').fillna(0)
+                    filtered_df = filtered_df[(nota_clean >= nota_range_qb[0]) & (nota_clean <= nota_range_qb[1])]
+                
+                # Aplicar agrupamento
+                result_df = apply_grouping(filtered_df, group_option, selected_columns)
+                
+                # Aplicar ordenação
+                if sort_column and sort_column in result_df.columns:
+                    ascending = sort_order.startswith("Crescente")
+                    result_df = result_df.sort_values(sort_column, ascending=ascending)
+                
+                # Aplicar limite
+                if limit_results and max_results:
+                    result_df = result_df.head(max_results)
+                
+                # Mostrar resultado
+                show_query_result(result_df, viz_type, selected_columns, available_cols)
+                
+            except Exception as e:
+                st.error(f"Erro ao executar consulta: {str(e)}")
+        else:
+            st.warning("⚠️ Selecione pelo menos uma coluna para mostrar!")
+
+def apply_grouping(df, group_option, selected_columns):
+    """Aplica agrupamento aos dados conforme opção selecionada"""
+    
+    if group_option == "Sem Agrupamento":
+        return df[selected_columns]
+    
+    elif group_option == "Por Faixa de População":
+        if 'Populacao' in df.columns:
+            pop_clean = pd.to_numeric(df['Populacao'], errors='coerce').fillna(0)
+            df['Faixa_Populacao'] = pd.cut(pop_clean, 
+                                         bins=[0, 20000, 50000, 100000, float('inf')],
+                                         labels=['Pequeno (até 20k)', 'Médio (20k-50k)', 
+                                               'Grande (50k-100k)', 'Muito Grande (100k+)'])
+            # Agrupar e agregar
+            numeric_cols = [col for col in selected_columns if col != 'Municipio' and df[col].dtype in ['int64', 'float64']]
+            if numeric_cols:
+                grouped = df.groupby('Faixa_Populacao')[numeric_cols].agg(['count', 'mean', 'sum']).round(2)
+                grouped.columns = [f'{col}_{stat}' for col, stat in grouped.columns]
+                return grouped.reset_index()
+            else:
+                return df.groupby('Faixa_Populacao').size().reset_index(name='Quantidade')
+        else:
+            return df[selected_columns]
+    
+    elif group_option == "Por Faixa de Nota":
+        if 'Nota_Media' in df.columns:
+            nota_clean = pd.to_numeric(df['Nota_Media'], errors='coerce').fillna(0)
+            df['Faixa_Nota'] = pd.cut(nota_clean,
+                                    bins=[0, 2, 4, 6, 8, 10],
+                                    labels=['Muito Baixa (0-2)', 'Baixa (2-4)', 
+                                          'Média (4-6)', 'Alta (6-8)', 'Muito Alta (8-10)'])
+            numeric_cols = [col for col in selected_columns if col != 'Municipio' and df[col].dtype in ['int64', 'float64']]
+            if numeric_cols:
+                grouped = df.groupby('Faixa_Nota')[numeric_cols].agg(['count', 'mean']).round(2)
+                grouped.columns = [f'{col}_{stat}' for col, stat in grouped.columns]
+                return grouped.reset_index()
+            else:
+                return df.groupby('Faixa_Nota').size().reset_index(name='Quantidade')
+        else:
+            return df[selected_columns]
+    
+    elif group_option == "Por Faixa de Valor":
+        if 'Valor_Municipal_Area' in df.columns:
+            valor_clean = pd.to_numeric(df['Valor_Municipal_Area'], errors='coerce').fillna(0)
+            valor_bi = valor_clean / 1_000_000_000
+            df['Faixa_Valor'] = pd.cut(valor_bi,
+                                     bins=[0, 5, 15, 25, float('inf')],
+                                     labels=['Baixo (até 5B)', 'Médio (5B-15B)', 
+                                           'Alto (15B-25B)', 'Premium (25B+)'])
+            numeric_cols = [col for col in selected_columns if col != 'Municipio' and df[col].dtype in ['int64', 'float64']]
+            if numeric_cols:
+                grouped = df.groupby('Faixa_Valor')[numeric_cols].agg(['count', 'mean', 'sum']).round(2)
+                grouped.columns = [f'{col}_{stat}' for col, stat in grouped.columns]
+                return grouped.reset_index()
+            else:
+                return df.groupby('Faixa_Valor').size().reset_index(name='Quantidade')
+        else:
+            return df[selected_columns]
+    
+    elif group_option == "Por Região (Alfabética)":
+        if 'Municipio' in df.columns:
+            df['Primeira_Letra'] = df['Municipio'].str[0].str.upper()
+            numeric_cols = [col for col in selected_columns if col != 'Municipio' and df[col].dtype in ['int64', 'float64']]
+            if numeric_cols:
+                grouped = df.groupby('Primeira_Letra')[numeric_cols].agg(['count', 'mean']).round(2)
+                grouped.columns = [f'{col}_{stat}' for col, stat in grouped.columns]
+                return grouped.reset_index()
+            else:
+                return df.groupby('Primeira_Letra').size().reset_index(name='Quantidade')
+        else:
+            return df[selected_columns]
+    
+    elif group_option == "Por Quartis":
+        if len(selected_columns) > 1:
+            numeric_col = next((col for col in selected_columns if col != 'Municipio' and df[col].dtype in ['int64', 'float64']), None)
+            if numeric_col:
+                quartis = pd.qcut(pd.to_numeric(df[numeric_col], errors='coerce').fillna(0), 
+                                q=4, labels=['Q1 (25% menores)', 'Q2', 'Q3', 'Q4 (25% maiores)'])
+                df['Quartil'] = quartis
+                numeric_cols = [col for col in selected_columns if col != 'Municipio' and df[col].dtype in ['int64', 'float64']]
+                if numeric_cols:
+                    grouped = df.groupby('Quartil')[numeric_cols].agg(['count', 'mean']).round(2)
+                    grouped.columns = [f'{col}_{stat}' for col, stat in grouped.columns]
+                    return grouped.reset_index()
+                else:
+                    return df.groupby('Quartil').size().reset_index(name='Quantidade')
+        return df[selected_columns]
+    
+    return df[selected_columns]
+
+def show_query_result(result_df, viz_type, selected_columns, available_cols):
+    """Exibe o resultado da consulta conforme tipo de visualização escolhido"""
+    
+    st.markdown("### 📋 Resultado da Consulta")
+    st.markdown(f"**{len(result_df)} registro(s) encontrado(s)**")
+    
+    if viz_type == "📊 Tabela Detalhada":
+        # Formatar nomes das colunas para exibição
+        display_df = result_df.copy()
+        column_rename = {}
+        for col in display_df.columns:
+            if col in available_cols:
+                column_rename[col] = available_cols[col]
+            elif '_' in col:
+                # Formatar colunas agregadas
+                parts = col.split('_')
+                if len(parts) >= 2:
+                    base_name = available_cols.get(parts[0], parts[0])
+                    stat_name = {'count': 'Quantidade', 'mean': 'Média', 'sum': 'Total'}.get(parts[1], parts[1])
+                    column_rename[col] = f"{base_name} ({stat_name})"
+        
+        if column_rename:
+            display_df = display_df.rename(columns=column_rename)
+        
+        st.dataframe(display_df, use_container_width=True)
+        
+        # Opção de download
+        csv = display_df.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            label="📥 Baixar Resultado (CSV)",
+            data=csv,
+            file_name=f"consulta_personalizada_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+            mime="text/csv"
+        )
+    
+    elif viz_type == "📈 Gráfico de Barras":
+        if len(result_df.columns) >= 2:
+            x_col = result_df.columns[0]
+            y_col = result_df.columns[1]
+            
+            fig = px.bar(result_df, x=x_col, y=y_col,
+                        title=f"{available_cols.get(y_col, y_col)} por {available_cols.get(x_col, x_col)}",
+                        labels={x_col: available_cols.get(x_col, x_col),
+                               y_col: available_cols.get(y_col, y_col)})
+            fig.update_layout(xaxis_tickangle=-45)
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.warning("⚠️ Gráfico de barras precisa de pelo menos 2 colunas")
+    
+    elif viz_type == "🥧 Gráfico de Pizza":
+        if len(result_df.columns) >= 2:
+            labels_col = result_df.columns[0]
+            values_col = result_df.columns[1]
+            
+            fig = px.pie(result_df, names=labels_col, values=values_col,
+                        title=f"Distribuição de {available_cols.get(values_col, values_col)}")
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.warning("⚠️ Gráfico de pizza precisa de pelo menos 2 colunas")
+    
+    elif viz_type == "🎯 Métricas (Cards)":
+        numeric_cols = result_df.select_dtypes(include=[np.number]).columns
+        if len(numeric_cols) > 0:
+            cols = st.columns(min(len(numeric_cols), 4))
+            for i, col in enumerate(numeric_cols[:4]):
+                with cols[i]:
+                    valor = result_df[col].sum() if len(result_df) > 1 else result_df[col].iloc[0]
+                    st.metric(
+                        label=available_cols.get(col, col),
+                        value=f"{valor:,.0f}" if valor > 1000 else f"{valor:.2f}"
+                    )
+        else:
+            st.warning("⚠️ Não há colunas numéricas para mostrar métricas")
+    
+    elif viz_type == "📉 Linha do Tempo":
+        if len(result_df.columns) >= 2:
+            x_col = result_df.columns[0]
+            y_col = result_df.columns[1]
+            
+            fig = px.line(result_df, x=x_col, y=y_col,
+                         title=f"Tendência de {available_cols.get(y_col, y_col)}",
+                         labels={x_col: available_cols.get(x_col, x_col),
+                                y_col: available_cols.get(y_col, y_col)})
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.warning("⚠️ Gráfico de linha precisa de pelo menos 2 colunas")
+    
+    elif viz_type == "🗺️ Dados Geográficos":
+        if 'Municipio' in result_df.columns:
+            st.markdown("**Dados Geográficos por Município:**")
+            st.dataframe(result_df, use_container_width=True)
+            
+            if len(result_df) <= 10:
+                st.info("💡 Dica: Com poucos municípios, você pode visualizar no mapa principal!")
+        else:
+            st.warning("⚠️ Dados geográficos precisam incluir a coluna 'Município'")
+
+
 def generate_pdf_report(df):
     """Gera um relatório em PDF com os dados e análises principais"""
     
@@ -1333,7 +1722,7 @@ def main():
     st.markdown("---")
     
     # Tabs para diferentes análises focadas em precificação
-    tab1, tab2, tab3, tab4 = st.tabs(["🗺️ Mapa Interativo", "🏆 Ranking de Valores", "📊 Análise Comparativa", "📈 Distribuição de Preços"])
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(["🗺️ Mapa Interativo", "🏆 Ranking de Valores", "📊 Análise Comparativa", "📈 Distribuição de Preços", "🤖 Query Builder"])
     
     with tab1:
         st.markdown("### 🗺️ Mapa Interativo dos Municípios")
@@ -1484,6 +1873,11 @@ def main():
                 st.info("💡 Dica: Certifique-se de que os dados de localização estão disponíveis.")
         else:
             st.warning("⚠️ Dados de valor municipal não disponíveis para o mapa.")
+
+    # Tab 5: Query Builder
+    with tab5:
+        st.markdown("# 🤖 Query Builder - Construtor de Consultas")
+        create_query_builder_interface(df_filtered)
     
     # Footer
     st.markdown("---")
