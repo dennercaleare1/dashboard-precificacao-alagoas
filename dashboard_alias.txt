@@ -1,0 +1,11 @@
+# Alias para gerenciar o Dashboard de Precificação
+# Adicione esta linha ao seu ~/.zshrc para usar de qualquer lugar
+
+alias dashboard='cd "/Users/dennercaleare/Documents/Zetta/Treino StreamLit Precificacao" && ./manage_dashboard.sh'
+
+# Uso:
+# dashboard start    - Inicia o dashboard
+# dashboard stop     - Para o dashboard  
+# dashboard restart  - Reinicia o dashboard
+# dashboard status   - Verifica status
+# dashboard logs     - Mostra logs em tempo real
