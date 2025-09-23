@@ -408,12 +408,12 @@ def create_overview_metrics(df):
             area_clean = pd.to_numeric(df['Valor_Municipal_Area'], errors='coerce').fillna(0)
             valor_total_area = area_clean.sum()
             st.metric(
-                "💰 Valor Total",
+                "Valor Total",
                 f"R$ {valor_total_area/1_000_000_000:.2f}B".replace('.', ','),
                 help="Valor municipal total por área (em bilhões)"
             )
         else:
-            st.metric("💰 Valor Total", "N/A")
+            st.metric("Valor Total", "N/A")
     
     with col3:
         if 'Valor_Municipal_Area' in df.columns:
@@ -430,7 +430,7 @@ def create_overview_metrics(df):
             else:
                 st.metric("� Valor Médio", "N/A")
         else:
-            st.metric("📊 Valor Médio", "N/A")
+            st.metric("Valor Médio", "N/A")
     
     with col4:
         if 'Valor_Municipal_Area' in df.columns:
@@ -439,14 +439,14 @@ def create_overview_metrics(df):
             if len(area_valid) > 0:
                 valor_max = area_valid.max()
                 st.metric(
-                    "🏆 Maior Valor",
+                    "Maior Valor",
                     f"R$ {valor_max/1_000_000_000:.2f}B".replace('.', ','),
                     help="Maior valor municipal por área"
                 )
             else:
-                st.metric("🏆 Maior Valor", "N/A")
+                st.metric("Maior Valor", "N/A")
         else:
-            st.metric("🏆 Maior Valor", "N/A")
+            st.metric("Maior Valor", "N/A")
 
 def create_population_chart(df):
     """Cria gráfico de população por município"""
@@ -505,7 +505,7 @@ def create_value_ranking_chart(df):
         top_values,
         x='Valor_Bilhoes',
         y='Municipio',
-        title="🏆 Top 15 Municípios por Valor de Área",
+        title="Ranking dos 15 Principais Municípios por Valor de Área",
         labels={'Valor_Bilhoes': 'Valor (R$ Bilhões)', 'Municipio': 'Município'},
         color='Valor_Bilhoes',
         color_continuous_scale='Viridis',
@@ -591,7 +591,7 @@ def create_price_distribution_chart(df):
         df_clean,
         x='Valor_Bilhoes',
         nbins=25,
-        title="📊 Distribuição de Valores Municipais por Área",
+        title="Distribuição de Valores Municipais por Área",
         labels={'Valor_Bilhoes': 'Valor Municipal (R$ Bilhões)', 'count': 'Quantidade de Municípios'},
         color_discrete_sequence=['#00D4AA'],
         opacity=0.8
@@ -666,7 +666,7 @@ def create_price_by_population_chart(df):
         y='Valor_Bilhoes',
         size='Valor_per_Capita',
         hover_name='Município',
-        title="💰 Valor Municipal vs População",
+        title="Correlação entre Valor Municipal e População",
         labels={
             'Pop_Milhares': 'População (milhares)',
             'Valor_Bilhoes': 'Valor Municipal (R$ Bilhões)',
@@ -717,7 +717,7 @@ def create_price_boxplot(df):
     fig = px.box(
         df_clean,
         y='Valor_Bilhoes',
-        title="📦 Distribuição Estatística dos Valores",
+        title="Análise Estatística da Distribuição de Valores",
         labels={'Valor_Bilhoes': 'Valor Municipal (R$ Bilhões)'},
         color_discrete_sequence=['#FF6B6B']
     )
@@ -906,7 +906,7 @@ def create_interactive_map(df):
                 
             popup_text = f"""
             <b>{municipio}</b><br>
-            💰 Valor (Área): {formatar_valor_brasileiro(valor)}<br>
+            Valor (Área): {formatar_valor_brasileiro(valor)}<br>
             👥 População: {formatar_numero_brasileiro(populacao_int)}<br>
             """
             
@@ -917,7 +917,7 @@ def create_interactive_map(df):
                 for nota_col in nota_columns[:3]:  # Mostrar apenas as 3 primeiras notas
                     if pd.notna(row.get(nota_col)):
                         nota_name = nota_col.replace('Nota_', '').replace('_', ' ')
-                        popup_text += f"📊 {nota_name}: {row[nota_col]:.1f}<br>"
+                        popup_text += f"{nota_name}: {row[nota_col]:.1f}<br>"
             
             # Adicionar marcador ao mapa
             folium.Marker(
@@ -940,7 +940,7 @@ def create_interactive_map(df):
                 box-shadow: 0 2px 10px rgba(0,0,0,0.3); font-family: Arial, sans-serif;
                 color: #333;">
     <p style="margin: 0 0 8px 0; font-weight: bold; color: #333; font-size: 14px;">
-        📊 Legenda - Valores (Área)
+        Legenda - Valores (Área)
     </p>
     <p style="margin: 4px 0; color: #333; display: flex; align-items: center;">
         <span style="display: inline-block; width: 12px; height: 12px; 
@@ -970,7 +970,7 @@ def create_interactive_map(df):
 def create_query_builder_interface(df):
     """Interface de Query Builder similar ao Metabase"""
     
-    st.markdown("### 🤖 Construtor de Consultas Inteligente")
+    st.markdown("### Construtor de Consultas")
     st.markdown("""
     <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
                 padding: 20px; border-radius: 10px; color: white; margin-bottom: 20px;">
@@ -986,13 +986,13 @@ def create_query_builder_interface(df):
     col1, col2, col3 = st.columns([1, 1, 1])
     
     with col1:
-        st.markdown("#### 📊 1. O que Mostrar?")
+        st.markdown("#### 1. Tipo de Visualização")
         
         # Seleção do tipo de visualização
         viz_type = st.selectbox(
             "Tipo de Visualização:",
-            ["📈 Gráfico de Barras", "📊 Tabela Detalhada", "🥧 Gráfico de Pizza", 
-             "📉 Linha do Tempo", "🎯 Métricas (Cards)", "🗺️ Dados Geográficos"],
+            ["Gráfico de Barras", "Tabela Detalhada", "Gráfico de Pizza", 
+             "Linha do Tempo", "Métricas (Cards)", "Dados Geográficos"],
             key="qb_viz_type"
         )
         
@@ -1058,7 +1058,7 @@ def create_query_builder_interface(df):
             max_results = None
     
     with col3:
-        st.markdown("#### 🎯 3. Quais Filtros?")
+        st.markdown("#### 3. Filtros de Dados")
         
         # Filtros personalizados
         st.markdown("**Filtros Personalizados:**")
@@ -1126,7 +1126,7 @@ def create_query_builder_interface(df):
     # Botão para executar consulta
     col1, col2, col3 = st.columns([1, 1, 1])
     with col2:
-        execute_query = st.button("🚀 Executar Consulta", type="primary", key="execute_qb")
+        execute_query = st.button("Executar Consulta", type="primary", key="execute_qb")
     
     if execute_query or st.session_state.get('auto_execute_qb', False):
         if selected_columns:
@@ -1261,7 +1261,7 @@ def apply_grouping(df, group_option, selected_columns):
 def show_query_result(result_df, viz_type, selected_columns, available_cols):
     """Exibe o resultado da consulta conforme tipo de visualização escolhido"""
     
-    st.markdown("### 📋 Resultado da Consulta")
+    st.markdown("### Resultado da Consulta")
     st.markdown(f"**{len(result_df)} registro(s) encontrado(s)**")
     
     if viz_type == "📊 Tabela Detalhada":
@@ -1756,7 +1756,7 @@ def main():
     
     # Sidebar
     with st.sidebar:
-        st.markdown("### 🔍 Filtros")
+        st.markdown("### Filtros")
         
         # Seleção de municípios
         municipios_lista = sorted(df['Municipio'].unique()) if 'Municipio' in df.columns else []
@@ -1935,10 +1935,10 @@ def main():
     st.markdown("---")
     
     # Tabs para diferentes análises focadas em precificação
-    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["🗺️ Mapa Interativo", "🏆 Ranking de Valores", "📊 Análise Comparativa", "📈 Distribuição de Preços", "🤖 Query Builder", "📋 Dados & Exportação"])
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["Mapa Interativo", "Ranking de Valores", "Análise Comparativa", "Distribuição de Preços", "Consultor de Dados", "Dados & Exportação"])
     
     with tab1:
-        st.markdown("### 🗺️ Mapa Interativo dos Municípios")
+        st.markdown("### Mapa Interativo dos Municípios")
         st.markdown("Visualize os municípios de Alagoas com dados de precificação. As cores dos marcadores representam diferentes faixas de valores.")
         
         # Criar e exibir o mapa em tela cheia
@@ -1973,7 +1973,7 @@ def main():
                 st.error(f"❌ Erro ao carregar o mapa: {str(e)}")
                 st.info("💡 Dica: Certifique-se de que os dados de localização estão disponíveis.")
         else:
-            st.warning("⚠️ Dados de valor municipal não disponíveis para o mapa.")
+            st.warning("Dados de valor municipal não disponíveis para o mapa.")
 
     with tab2:
         st.markdown("### �🏆 Ranking dos Municípios por Valor")
@@ -2000,7 +2000,7 @@ def main():
                     st.info("📊 Nenhum dado de valor disponível para os filtros aplicados")
         
         # Tabela detalhada
-        st.markdown("### 📋 Dados Detalhados")
+        st.markdown("### Dados Detalhados")
         if 'Municipio' in df_filtered.columns and 'Valor_Municipal_Area' in df_filtered.columns:
             display_df = df_filtered[['Municipio', 'Valor_Municipal_Area', 'Valor_Municipal_Perimetro']].copy()
             display_df['Valor_Area_Limpo'] = display_df['Valor_Municipal_Area'].apply(clean_brazilian_number)
@@ -2015,14 +2015,14 @@ def main():
             st.dataframe(final_df, use_container_width=True)
 
     with tab3:
-        st.markdown("### 💹 Análise: Valor vs População")
+        st.markdown("### Análise: Valor vs População")
         
         fig_comparison = create_value_per_population_chart(df_filtered)
         if fig_comparison:
             st.plotly_chart(fig_comparison, use_container_width=True)
         
         # Análise de correlação específica
-        st.markdown("### 🔗 Correlação entre Valores")
+        st.markdown("### Correlação entre Valores")
         if 'Valor_Municipal_Area' in df_filtered.columns and 'Valor_Municipal_Perimetro' in df_filtered.columns:
             area_clean = df_filtered['Valor_Municipal_Area'].apply(clean_brazilian_number)
             perim_clean = df_filtered['Valor_Municipal_Perimetro'].apply(clean_brazilian_number)
@@ -2037,12 +2037,12 @@ def main():
                 
                 col1, col2, col3 = st.columns(3)
                 with col1:
-                    st.metric("🔗 Correlação", f"{correlation:.3f}")
+                    st.metric("Correlação", f"{correlation:.3f}")
                 with col2:
-                    st.metric("📊 Dados Válidos", f"{len(valid_data)}")
+                    st.metric("Dados Válidos", f"{len(valid_data)}")
                 with col3:
                     ratio_medio = (valid_data['Area'] / valid_data['Perimetro']).mean()
-                    st.metric("⚖️ Ratio Médio (Área/Perímetro)", f"{ratio_medio:.2f}".replace('.', ','))
+                    st.metric("Ratio Médio (Área/Perímetro)", f"{ratio_medio:.2f}".replace('.', ','))
     
     with tab4:
         st.markdown("# � Distribuição de Preços")
@@ -2059,13 +2059,13 @@ def main():
                 
                 col1, col2, col3, col4 = st.columns(4)
                 with col1:
-                    st.metric("💰 Valor Total", f"R$ {valores_bi.sum():.1f}B".replace('.', ','))
+                    st.metric("Valor Total", f"R$ {valores_bi.sum():.1f}B".replace('.', ','))
                 with col2:
-                    st.metric("📊 Valor Médio", f"R$ {valores_bi.mean():.1f}B".replace('.', ','))
+                    st.metric("Valor Médio", f"R$ {valores_bi.mean():.1f}B".replace('.', ','))
                 with col3:
-                    st.metric("🏆 Valor Máximo", f"R$ {valores_bi.max():.1f}B".replace('.', ','))
+                    st.metric("Valor Máximo", f"R$ {valores_bi.max():.1f}B".replace('.', ','))
                 with col4:
-                    st.metric("📍 Municípios", f"{len(valores_valid)}")
+                    st.metric("Municípios", f"{len(valores_valid)}")
         
         st.markdown("---")
         
@@ -2085,7 +2085,7 @@ def main():
                 st.plotly_chart(fig_boxplot, use_container_width=True)
         
         # Gráfico de dispersão (linha completa)
-        st.markdown("### 🎯 Relação Valor vs População")
+        st.markdown("### Relação Valor vs População")
         fig_scatter = create_price_by_population_chart(df_filtered)
         if fig_scatter:
             st.plotly_chart(fig_scatter, use_container_width=True)
@@ -2095,7 +2095,7 @@ def main():
         st.markdown("---")
         
         # Análise por faixas de preço
-        st.markdown("### 💼 Análise por Faixas de Preço")
+        st.markdown("### Análise por Faixas de Preço")
         if 'Valor_Municipal_Area' in df_filtered.columns:
             valores_clean = df_filtered['Valor_Municipal_Area'].apply(clean_brazilian_number)
             valores_valid = valores_clean.dropna()
@@ -2106,10 +2106,10 @@ def main():
                 
                 # Define faixas melhoradas
                 faixas = {
-                    "💚 Baixo (< 5B)": (valores_bi < 5).sum(),
-                    "💛 Médio (5B - 15B)": ((valores_bi >= 5) & (valores_bi < 15)).sum(),
-                    "🧡 Alto (15B - 25B)": ((valores_bi >= 15) & (valores_bi < 25)).sum(),
-                    "❤️ Premium (≥ 25B)": (valores_bi >= 25).sum()
+                    "Baixo (< 5B)": (valores_bi < 5).sum(),
+                    "Médio (5B - 15B)": ((valores_bi >= 5) & (valores_bi < 15)).sum(),
+                    "Alto (15B - 25B)": ((valores_bi >= 15) & (valores_bi < 25)).sum(),
+                    "Premium (≥ 25B)": (valores_bi >= 25).sum()
                 }
                 
                 # Layout das faixas
@@ -2126,7 +2126,7 @@ def main():
                         )
                 
                 # Gráfico de pizza das faixas
-                st.markdown("### 🍰 Distribuição por Faixas")
+                st.markdown("### Distribuição por Faixas")
                 
                 # Cria dados para o gráfico de pizza
                 labels = list(faixas.keys())
@@ -2169,17 +2169,17 @@ def main():
 
     # Tab 5: Query Builder
     with tab5:
-        st.markdown("# 🤖 Query Builder - Construtor de Consultas")
+        st.markdown("# Construtor de Consultas")
         create_query_builder_interface(df_filtered)
     
     # Tab 6: Dados & Exportação
     with tab6:
-        st.markdown("# 📋 Dados & Exportação")
+        st.markdown("# Dados & Exportação")
         
         col1, col2 = st.columns([2, 1])
         
         with col1:
-            st.markdown("### 🔍 Filtros da Tabela")
+            st.markdown("### Filtros da Tabela")
             
             # Filtros específicos para a tabela
             filter_col1, filter_col2 = st.columns(2)
@@ -2203,7 +2203,7 @@ def main():
                     pop_filtro = None
         
         with col2:
-            st.markdown("### 📊 Estatísticas Rápidas")
+            st.markdown("### Estatísticas Rápidas")
             st.metric("📍 Total de Registros", len(df))
             if 'Municipio' in df.columns:
                 st.metric("🏘️ Municípios", df['Municipio'].nunique())
@@ -2212,7 +2212,7 @@ def main():
             st.metric("📋 Colunas", len(df.columns))
             
             # Botão de download
-            st.markdown("### 💾 Exportar Dados")
+            st.markdown("### Exportar Dados")
             csv_data = df.to_csv(index=False)
             st.download_button(
                 label="⬇️ Baixar CSV Completo",
@@ -2232,7 +2232,7 @@ def main():
             df_tabela = df_tabela[(pop_clean >= pop_filtro[0]) & (pop_clean <= pop_filtro[1])]
         
         # Exibir tabela filtrada
-        st.markdown("### 📋 Tabela de Dados")
+        st.markdown("### Tabela de Dados")
         
         if len(df_tabela) > 0:
             st.info(f"📊 Exibindo {len(df_tabela)} de {len(df)} registros")
