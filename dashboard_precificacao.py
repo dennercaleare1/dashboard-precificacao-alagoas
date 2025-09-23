@@ -32,16 +32,16 @@ from reportlab.lib.units import inch
 def formatar_valor_grande(valor):
     """
     Formata valores grandes usando K (milhares), M (milhões), B (bilhões)
-    Ex: 1.500.000 → R$ 1.50M
+    Ex: 1.500.000 → R$ 1,50M
     """
     if valor >= 1_000_000_000:
-        return f"R$ {valor / 1_000_000_000:.2f}B"
+        return f"R$ {valor / 1_000_000_000:.2f}B".replace('.', ',')
     elif valor >= 1_000_000:
-        return f"R$ {valor / 1_000_000:.2f}M"
+        return f"R$ {valor / 1_000_000:.2f}M".replace('.', ',')
     elif valor >= 1_000:
-        return f"R$ {valor / 1_000:.2f}K"
+        return f"R$ {valor / 1_000:.2f}K".replace('.', ',')
     else:
-        return f"R$ {valor:.2f}"
+        return f"R$ {valor:.2f}".replace('.', ',')
 
 def formatar_numero_brasileiro(numero):
     """
@@ -60,8 +60,11 @@ def formatar_valor_brasileiro(valor):
     try:
         valor = float(valor)
         if valor >= 1000:
-            return f"R$ {valor:,.0f}".replace(',', '.')
+            # Para valores >= 1000, usa separador de milhares (ponto) e decimais (vírgula)
+            valor_formatado = f"{valor:,.2f}".replace(',', 'TEMP').replace('.', ',').replace('TEMP', '.')
+            return f"R$ {valor_formatado}"
         else:
+            # Para valores < 1000, apenas troca ponto por vírgula nos decimais
             return f"R$ {valor:.2f}".replace('.', ',')
     except:
         return str(valor)
@@ -350,7 +353,7 @@ def create_overview_metrics(df):
             valor_total_area = area_clean.sum()
             st.metric(
                 "💰 Valor Total",
-                f"R$ {valor_total_area/1_000_000_000:.2f}B",
+                f"R$ {valor_total_area/1_000_000_000:.2f}B".replace('.', ','),
                 help="Valor municipal total por área (em bilhões)"
             )
         else:
@@ -365,7 +368,7 @@ def create_overview_metrics(df):
                 valor_medio = area_valid.mean()
                 st.metric(
                     "� Valor Médio",
-                    f"R$ {valor_medio/1_000_000:.2f}M",
+                    f"R$ {valor_medio/1_000_000:.2f}M".replace('.', ','),
                     help="Valor médio por município (área) em milhões"
                 )
             else:
@@ -381,7 +384,7 @@ def create_overview_metrics(df):
                 valor_max = area_valid.max()
                 st.metric(
                     "🏆 Maior Valor",
-                    f"R$ {valor_max/1_000_000_000:.2f}B",
+                    f"R$ {valor_max/1_000_000_000:.2f}B".replace('.', ','),
                     help="Maior valor municipal por área"
                 )
             else:
@@ -1287,9 +1290,9 @@ def generate_pdf_report(df):
             if len(values) > 0:
                 notes_data.append([
                     col.replace('Nota_', '').replace('_', ' '),
-                    f"{values.mean():.2f}",
-                    f"{values.min():.2f}",
-                    f"{values.max():.2f}"
+                    f"{values.mean():.2f}".replace('.', ','),
+                    f"{values.min():.2f}".replace('.', ','),
+                    f"{values.max():.2f}".replace('.', ',')
                 ])
         
         notes_table = Table(notes_data, colWidths=[2*inch, 1.5*inch, 1.5*inch, 1.5*inch])
@@ -1755,7 +1758,7 @@ def main():
                         # Converter para valores numéricos e calcular total em bilhões
                         valores_clean = pd.to_numeric(df_filtered['Valor_Municipal_Area'], errors='coerce').fillna(0)
                         valor_total_bi = valores_clean.sum() / 1_000_000_000
-                        st.metric("💰 Valor Total", f"R$ {valor_total_bi:.2f}B")
+                        st.metric("💰 Valor Total", f"R$ {valor_total_bi:.2f}B".replace('.', ','))
                 
                 with col3:
                     if 'Populacao' in df_filtered.columns:
@@ -1786,10 +1789,10 @@ def main():
                 valores_valid = valores_clean.dropna()
                 
                 if not valores_valid.empty:
-                    st.metric("💰 Maior Valor", f"R$ {valores_valid.max()/1_000_000_000:.2f}B")
-                    st.metric("📊 Valor Médio", f"R$ {valores_valid.mean()/1_000_000_000:.2f}B") 
-                    st.metric("📉 Menor Valor", f"R$ {valores_valid.min()/1_000_000:.2f}M")
-                    st.metric("🎯 Total Geral", f"R$ {valores_valid.sum()/1_000_000_000:.2f}B")
+                    st.metric("💰 Maior Valor", f"R$ {valores_valid.max()/1_000_000_000:.2f}B".replace('.', ','))
+                    st.metric("📊 Valor Médio", f"R$ {valores_valid.mean()/1_000_000_000:.2f}B".replace('.', ',')) 
+                    st.metric("📉 Menor Valor", f"R$ {valores_valid.min()/1_000_000:.2f}M".replace('.', ','))
+                    st.metric("🎯 Total Geral", f"R$ {valores_valid.sum()/1_000_000_000:.2f}B".replace('.', ','))
                 else:
                     st.info("📊 Nenhum dado de valor disponível para os filtros aplicados")
         
@@ -1836,7 +1839,7 @@ def main():
                     st.metric("📊 Dados Válidos", f"{len(valid_data)}")
                 with col3:
                     ratio_medio = (valid_data['Area'] / valid_data['Perimetro']).mean()
-                    st.metric("⚖️ Ratio Médio (Área/Perímetro)", f"{ratio_medio:.2f}")
+                    st.metric("⚖️ Ratio Médio (Área/Perímetro)", f"{ratio_medio:.2f}".replace('.', ','))
     
     with tab4:
         st.markdown("### 📊 Distribuição de Preços por Área")
