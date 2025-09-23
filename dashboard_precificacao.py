@@ -1,25 +1,86 @@
+# =============================================================================
+# IMPORTS E DEPENDÊNCIAS
+# =============================================================================
+
+# Bibliotecas principais
 import streamlit as st
 import pandas as pd
+import numpy as np
+import os
+from datetime import datetime
+import io
+
+# Bibliotecas de visualização
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-import numpy as np
+import folium
+from streamlit_folium import st_folium
+
+# Bibliotecas para geração de PDF
 from reportlab.lib.pagesizes import letter, A4
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak, Image
 from reportlab.lib.units import inch
-from datetime import datetime
-import io
-import base64
-import tempfile
-import os
-import folium
-from streamlit_folium import st_folium
-import folium
-from streamlit_folium import st_folium
 
-# Configuração da página
+# =============================================================================
+# FUNÇÕES DE FORMATAÇÃO E UTILITÁRIOS
+# =============================================================================
+
+# Função para formatar valores grandes em formato legível (K, M, B)
+def formatar_valor_grande(valor):
+    """
+    Formata valores grandes usando K (milhares), M (milhões), B (bilhões)
+    Ex: 1.500.000 → R$ 1.50M
+    """
+    if valor >= 1_000_000_000:
+        return f"R$ {valor / 1_000_000_000:.2f}B"
+    elif valor >= 1_000_000:
+        return f"R$ {valor / 1_000_000:.2f}M"
+    elif valor >= 1_000:
+        return f"R$ {valor / 1_000:.2f}K"
+    else:
+        return f"R$ {valor:.2f}"
+
+def formatar_numero_brasileiro(numero):
+    """
+    Formata números no padrão brasileiro: 1.234.567 
+    """
+    try:
+        numero = int(numero)
+        return f"{numero:,.0f}".replace(',', '.')
+    except:
+        return str(numero)
+
+def formatar_valor_brasileiro(valor):
+    """
+    Formata valores monetários no padrão brasileiro: R$ 1.234.567,89
+    """
+    try:
+        valor = float(valor)
+        if valor >= 1000:
+            return f"R$ {valor:,.0f}".replace(',', '.')
+        else:
+            return f"R$ {valor:.2f}".replace('.', ',')
+    except:
+        return str(valor)
+
+def corrigir_populacao(populacao_series):
+    """
+    Corrige a interpretação da população que usa ponto como separador de milhares.
+    Exemplo: 51.783 deve ser interpretado como 51,783 habitantes
+    """
+    try:
+        # Converte para string, remove pontos e converte para inteiro
+        return populacao_series.astype(str).str.replace('.', '').str.replace(',', '').astype(int)
+    except:
+        # Fallback: tenta conversão direta
+        return pd.to_numeric(populacao_series, errors='coerce').fillna(0).astype(int)
+
+# =============================================================================
+# CONFIGURAÇÃO DA PÁGINA E ESTILOS
+# =============================================================================
 st.set_page_config(
     page_title="Dashboard de Precificação - Municípios de Alagoas",
     page_icon="🏘️",
@@ -159,6 +220,19 @@ st.markdown("""
         background: transparent !important;
         border: none !important;
     }
+    
+    /* Estilo para botão PDF discreto */
+    .pdf-button {
+        font-size: 1.2rem;
+        padding: 0.3rem 0.6rem;
+        border-radius: 8px;
+        opacity: 0.7;
+        transition: opacity 0.2s ease;
+    }
+    
+    .pdf-button:hover {
+        opacity: 1;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -193,6 +267,10 @@ def clean_brazilian_number(value):
     except ValueError:
         return np.nan
 
+# =============================================================================
+# CARREGAMENTO E PROCESSAMENTO DE DADOS
+# =============================================================================
+
 @st.cache_data
 def load_data():
     """Carrega e processa os dados do CSV"""
@@ -211,8 +289,6 @@ def load_data():
         if not csv_file:
             st.error("Nenhum arquivo CSV encontrado!")
             return pd.DataFrame()
-        
-        st.info(f"📁 Carregando dados de: {csv_file}")
         
         # Carrega o CSV
         df = pd.read_csv(csv_file)
@@ -249,6 +325,10 @@ def load_data():
         st.error(f"Erro ao carregar os dados: {e}")
         return pd.DataFrame()
 
+# =============================================================================
+# FUNÇÕES DE MÉTRICAS E VISUALIZAÇÕES
+# =============================================================================
+
 def create_overview_metrics(df):
     """Cria métricas de visão geral focadas em precificação por área"""
     if df.empty:
@@ -259,7 +339,7 @@ def create_overview_metrics(df):
     with col1:
         st.metric(
             "🏘️ Total de Municípios",
-            f"{len(df):,}",
+            formatar_numero_brasileiro(len(df)),
             help="Número total de municípios analisados"
         )
     
@@ -270,7 +350,7 @@ def create_overview_metrics(df):
             valor_total_area = area_clean.sum()
             st.metric(
                 "💰 Valor Total",
-                f"R$ {valor_total_area/1_000_000_000:.1f}B",
+                f"R$ {valor_total_area/1_000_000_000:.2f}B",
                 help="Valor municipal total por área (em bilhões)"
             )
         else:
@@ -285,7 +365,7 @@ def create_overview_metrics(df):
                 valor_medio = area_valid.mean()
                 st.metric(
                     "� Valor Médio",
-                    f"R$ {valor_medio/1_000_000:.0f}M",
+                    f"R$ {valor_medio/1_000_000:.2f}M",
                     help="Valor médio por município (área) em milhões"
                 )
             else:
@@ -301,7 +381,7 @@ def create_overview_metrics(df):
                 valor_max = area_valid.max()
                 st.metric(
                     "🏆 Maior Valor",
-                    f"R$ {valor_max/1_000_000_000:.1f}B",
+                    f"R$ {valor_max/1_000_000_000:.2f}B",
                     help="Maior valor municipal por área"
                 )
             else:
@@ -506,6 +586,10 @@ def create_notes_distribution(df):
     
     return fig
 
+# =============================================================================
+# MAPEAMENTO E GEOLOCALIZAÇÃO
+# =============================================================================
+
 def create_interactive_map(df):
     """Cria um mapa interativo dos municípios de Alagoas com dados de precificação"""
     
@@ -607,10 +691,17 @@ def create_interactive_map(df):
                 icon_color = 'lightred'
             
             # Criar popup com informações detalhadas
+            # Corrigir população removendo pontos (separador de milhares brasileiro)
+            populacao_valor = str(row.get('Populacao', 0)).replace('.', '').replace(',', '')
+            try:
+                populacao_int = int(float(populacao_valor))
+            except:
+                populacao_int = 0
+                
             popup_text = f"""
             <b>{municipio}</b><br>
-            💰 Valor (Área): R$ {valor:,.2f}<br>
-            👥 População: {row.get('Populacao', 'N/A'):,}<br>
+            💰 Valor (Área): {formatar_valor_brasileiro(valor)}<br>
+            👥 População: {formatar_numero_brasileiro(populacao_int)}<br>
             """
             
             # Adicionar notas se disponíveis
@@ -626,7 +717,7 @@ def create_interactive_map(df):
             folium.Marker(
                 location=coords,
                 popup=folium.Popup(popup_text, max_width=300),
-                tooltip=f"{municipio} - R$ {valor:,.0f}",
+                tooltip=f"{municipio} - {formatar_valor_brasileiro(valor)}",
                 icon=folium.Icon(
                     color=color,
                     icon='info-sign',
@@ -665,6 +756,10 @@ def create_interactive_map(df):
     m.get_root().html.add_child(folium.Element(legend_html))
     
     return m
+
+# =============================================================================
+# QUERY BUILDER E ANÁLISES AVANÇADAS
+# =============================================================================
 
 def create_query_builder_interface(df):
     """Interface de Query Builder similar ao Metabase"""
@@ -1026,7 +1121,7 @@ def show_query_result(result_df, viz_type, selected_columns, available_cols):
                     valor = result_df[col].sum() if len(result_df) > 1 else result_df[col].iloc[0]
                     st.metric(
                         label=available_cols.get(col, col),
-                        value=f"{valor:,.0f}" if valor > 1000 else f"{valor:.2f}"
+                        value=formatar_numero_brasileiro(valor) if valor > 1000 else f"{valor:.2f}".replace('.', ',')
                     )
         else:
             st.warning("⚠️ Não há colunas numéricas para mostrar métricas")
@@ -1054,6 +1149,9 @@ def show_query_result(result_df, viz_type, selected_columns, available_cols):
         else:
             st.warning("⚠️ Dados geográficos precisam incluir a coluna 'Município'")
 
+# =============================================================================
+# GERAÇÃO DE RELATÓRIOS E EXPORTAÇÃO
+# =============================================================================
 
 def generate_pdf_report(df):
     """Gera um relatório em PDF com os dados e análises principais"""
@@ -1109,8 +1207,8 @@ def generate_pdf_report(df):
     # Calcular métricas
     total_municipios = len(df)
     if 'Populacao' in df.columns:
-        populacao_clean = pd.to_numeric(df['Populacao'], errors='coerce').fillna(0)
-        total_populacao = populacao_clean.sum()
+        populacao_clean = corrigir_populacao(df['Populacao'])
+        total_populacao = int(populacao_clean.sum())
     else:
         total_populacao = 0
         
@@ -1130,9 +1228,9 @@ def generate_pdf_report(df):
     metrics_data = [
         ['Métrica', 'Valor'],
         ['Total de Municípios', f'{total_municipios:,}'],
-        ['População Total', f'{total_populacao:,.0f} habitantes'],
+        ['População Total', f'{formatar_numero_brasileiro(total_populacao)} habitantes'],
         ['Nota Média Geral', f'{nota_media:.1f}'],
-        ['Valor Municipal Total', f'R$ {valor_total:,.0f}']
+        ['Valor Municipal Total', formatar_valor_grande(valor_total)]
     ]
     
     metrics_table = Table(metrics_data, colWidths=[3*inch, 3*inch])
@@ -1160,7 +1258,7 @@ def generate_pdf_report(df):
         
         pop_data = [['Município', 'População']]
         for _, row in top_pop.iterrows():
-            pop_data.append([row['Municipio'], f"{row['Populacao']:,.0f}"])
+            pop_data.append([row['Municipio'], formatar_numero_brasileiro(row['Populacao'])])
         
         pop_table = Table(pop_data, colWidths=[3*inch, 2*inch])
         pop_table.setStyle(TableStyle([
@@ -1223,7 +1321,7 @@ def generate_pdf_report(df):
         
         values_data = [['Município', 'Valor Municipal (R$)']]
         for _, row in top_values.iterrows():
-            values_data.append([row['Municipio'], f"R$ {row['Valor_Municipal_Area']:,.0f}"])
+            values_data.append([row['Municipio'], formatar_valor_brasileiro(row['Valor_Municipal_Area'])])
         
         values_table = Table(values_data, colWidths=[3*inch, 3*inch])
         values_table.setStyle(TableStyle([
@@ -1262,11 +1360,11 @@ def generate_pdf_report(df):
                 for col in main_cols:
                     value = summary_stats.loc[stat, col]
                     if col == 'Populacao':
-                        row.append(f"{value:,.0f}")
+                        row.append(formatar_numero_brasileiro(value))
                     elif col == 'Valor_Municipal_Area':
-                        row.append(f"R$ {value:,.0f}")
+                        row.append(formatar_valor_brasileiro(value))
                     else:
-                        row.append(f"{value:.2f}")
+                        row.append(f"{value:.2f}".replace('.', ','))
                 stats_data.append(row)
             
             stats_table = Table(stats_data)
@@ -1335,15 +1433,19 @@ def apply_filters(df, municipios_selecionados, busca_texto, pop_range, nota_rang
         ]
     
     # Aplicar filtros rápidos
-    if show_top_only == "Top 10 por População" and 'Populacao' in df_filtered.columns:
-        pop_clean = pd.to_numeric(df_filtered['Populacao'], errors='coerce').fillna(0)
-        df_filtered = df_filtered.nlargest(10, 'Populacao')
-    elif show_top_only == "Top 10 por Valor" and 'Valor_Municipal_Area' in df_filtered.columns:
+    if show_top_only == "Top 10 Valor" and 'Valor_Municipal_Area' in df_filtered.columns:
         valor_clean = pd.to_numeric(df_filtered['Valor_Municipal_Area'], errors='coerce').fillna(0)
         df_filtered = df_filtered.nlargest(10, 'Valor_Municipal_Area')
-    elif show_top_only == "Top 10 por Nota" and 'Nota_Media' in df_filtered.columns:
-        nota_clean = pd.to_numeric(df_filtered['Nota_Media'], errors='coerce').fillna(0)
-        df_filtered = df_filtered.nlargest(10, 'Nota_Media')
+    elif show_top_only == "Top 10 Perímetro" and 'Valor_Municipal_Perimetro' in df_filtered.columns:
+        perim_clean = pd.to_numeric(df_filtered['Valor_Municipal_Perimetro'], errors='coerce').fillna(0)
+        df_filtered = df_filtered.nlargest(10, 'Valor_Municipal_Perimetro')
+    elif show_top_only == "Top 5 Premium" and 'Valor_Municipal_Area' in df_filtered.columns:
+        valor_clean = pd.to_numeric(df_filtered['Valor_Municipal_Area'], errors='coerce').fillna(0)
+        df_filtered = df_filtered.nlargest(5, 'Valor_Municipal_Area')
+    elif show_top_only == "Baixo Valor" and 'Valor_Municipal_Area' in df_filtered.columns:
+        valor_clean = pd.to_numeric(df_filtered['Valor_Municipal_Area'], errors='coerce').fillna(0)
+        # Pegar valores abaixo de 5 bilhões
+        df_filtered = df_filtered[valor_clean < 5_000_000_000]
     
     return df_filtered
 
@@ -1420,9 +1522,16 @@ def create_value_analysis(df):
     
     return fig
 
+# =============================================================================
+# INTERFACE PRINCIPAL E CONTROLE DE APLICAÇÃO  
+# =============================================================================
+
 def main():
-    # Header principal
-    st.markdown('<h1 class="main-header">🏘️ Dashboard de Precificação - Municípios de Alagoas</h1>', unsafe_allow_html=True)
+    # Header principal com botão PDF no canto direito
+    header_col1, header_col2 = st.columns([3, 1])
+    
+    with header_col1:
+        st.markdown('<h1 class="main-header">🏘️ Dashboard de Precificação - Municípios de Alagoas</h1>', unsafe_allow_html=True)
     
     # Carrega os dados primeiro
     df = load_data()
@@ -1437,96 +1546,71 @@ def main():
     if 'busca_texto' not in st.session_state:
         st.session_state.busca_texto = ""
     if 'show_top_only' not in st.session_state:
-        st.session_state.show_top_only = "Todos os municípios"
+        st.session_state.show_top_only = "Todos"
     
     # Sidebar
     with st.sidebar:
-        st.markdown('<div class="sidebar-info">', unsafe_allow_html=True)
-        st.markdown("### 📊 Dashboard de Precificação")
-        st.markdown("""
-        Análise completa dos valores municipais de Alagoas:
+        st.markdown("### 🔍 Filtros")
         
-        - 💰 **Valores por Área**: Análise dos valores municipais por área total
-        - 📏 **Valores por Perímetro**: Análise dos valores por perímetro municipal  
-        - 🏆 **Rankings**: Classificação dos municípios por valor
-        - 📊 **Distribuições**: Análise estatística dos preços
-        - 💹 **Comparações**: Relações entre diferentes métricas de valor
-        """)
-        st.markdown('</div>', unsafe_allow_html=True)
-        
-        # Filtros
-        st.markdown("### 🔍 Filtros de Precificação")
-        
-        # Filtro por nome da cidade
-        st.markdown("**📍 Seleção de Municípios**")
+        # Seleção de municípios
         municipios_lista = sorted(df['Municipio'].unique()) if 'Municipio' in df.columns else []
         municipios_selecionados = st.multiselect(
-            "Escolha municípios específicos:",
+            "🏘️ Municípios",
             options=municipios_lista,
-            placeholder="Todos os municípios incluídos",
+            placeholder="Todos",
             key="municipios_selecionados"
         )
         
-        # Filtro por busca de texto
+        # Busca rápida
         busca_texto = st.text_input(
-            "🔍 Busca rápida por nome:",
-            placeholder="Ex: Maceió, Arapiraca...",
+            "🔍 Buscar",
+            placeholder="Nome do município...",
             key="busca_texto"
         )
         
-        # Filtro por faixa de população
+        # População
         if 'Populacao' in df.columns:
-            st.markdown("**👥 Filtro por População**")
             pop_clean = pd.to_numeric(df['Populacao'], errors='coerce').fillna(0)
             pop_min, pop_max = int(pop_clean.min()), int(pop_clean.max())
             
             pop_range = st.slider(
-                "Faixa de população:",
+                "👥 População",
                 min_value=pop_min,
                 max_value=pop_max,
                 value=(pop_min, pop_max),
-                step=1000,
-                format="%d",
                 key="pop_range"
             )
         
-        # Filtro por notas
+        # Nota média
         if 'Nota_Media' in df.columns:
-            st.markdown("**⭐ Filtro por Nota Média**")
             nota_clean = pd.to_numeric(df['Nota_Media'], errors='coerce').fillna(0)
             nota_min, nota_max = float(nota_clean.min()), float(nota_clean.max())
             
             nota_range = st.slider(
-                "Faixa de nota média:",
+                "⭐ Nota",
                 min_value=nota_min,
                 max_value=nota_max,
                 value=(nota_min, nota_max),
                 step=0.1,
-                format="%.1f",
                 key="nota_range"
             )
         
-        # Filtro por valor municipal (área)
+        # Valor por área
         if 'Valor_Municipal_Area' in df.columns:
-            st.markdown("**💰 Faixa de Valor por Área**")
-            # Os dados já foram processados na load_data(), então usamos diretamente
             area_values = pd.to_numeric(df['Valor_Municipal_Area'], errors='coerce').fillna(0)
-            area_valid = area_values[area_values > 0]  # Remove zeros
+            area_valid = area_values[area_values > 0]
             
             if not area_valid.empty:
                 valor_min, valor_max = float(area_valid.min()), float(area_valid.max())
-                
-                # Usar valores em bilhões para facilitar a visualização
                 valor_min_bi = valor_min / 1_000_000_000
                 valor_max_bi = valor_max / 1_000_000_000
                 
                 valor_range = st.slider(
-                    "Valor por área (R$ bilhões):",
+                    "💰 Valor (R$ bi)",
                     min_value=valor_min_bi,
                     max_value=valor_max_bi,
                     value=(valor_min_bi, valor_max_bi),
                     step=1.0,
-                    format="%.1f",
                     key="valor_range"
                 )
             else:
@@ -1534,97 +1618,27 @@ def main():
         else:
             valor_range = (0, 0)
         
-        # Filtro por valor municipal (perímetro)
-        if 'Valor_Municipal_Perimetro' in df.columns:
-            st.markdown("**📏 Faixa de Valor por Perímetro**")
-            # Os dados já foram processados na load_data(), então usamos diretamente
-            perim_values = pd.to_numeric(df['Valor_Municipal_Perimetro'], errors='coerce').fillna(0)
-            perim_valid = perim_values[perim_values > 0]  # Remove zeros
-            
-            if not perim_valid.empty:
-                perim_min, perim_max = float(perim_valid.min()), float(perim_valid.max())
-                
-                # Usar valores em milhões para perímetro
-                perim_min_mi = perim_min / 1_000_000
-                perim_max_mi = perim_max / 1_000_000
-                
-                perim_range = st.slider(
-                    "Valor por perímetro (R$ milhões):",
-                    min_value=perim_min_mi,
-                    max_value=perim_max_mi,
-                    value=(perim_min_mi, perim_max_mi),
-                    step=0.5,
-                    format="%.1f",
-                    key="perim_range"
-                )
-            else:
-                perim_range = (0, 0)
-        else:
-            perim_range = (0, 0)
-        
-        # Filtros de análise rápida
-        st.markdown("**🎯 Análises Rápidas**")
+        # Análise rápida
         show_top_only = st.selectbox(
-            "Tipo de análise:",
-            options=["Todos os municípios", "🏆 Top 10 por Valor (Área)", "📏 Top 10 por Valor (Perímetro)", "💎 Top 5 Premium", "💚 Valores Baixos"],
-            index=0,
+            "🎯 Análise",
+            options=["Todos", "Top 10 Valor", "Top 10 Perímetro", "Top 5 Premium", "Baixo Valor"],
             key="show_top_only"
         )
         
-        # Botão para limpar filtros
-        if st.button("🗑️ Limpar Filtros", type="secondary"):
-            # Limpa todas as variáveis do session_state relacionadas aos filtros
-            keys_to_clear = [
-                'municipios_selecionados', 'busca_texto', 'pop_range', 
-                'nota_range', 'valor_range', 'show_top_only'
-            ]
+        # Botão limpar
+        if st.button("🗑️ Limpar", type="secondary", use_container_width=True):
+            keys_to_clear = ['municipios_selecionados', 'busca_texto', 'pop_range', 'nota_range', 'valor_range', 'show_top_only']
             for key in keys_to_clear:
                 if key in st.session_state:
                     del st.session_state[key]
             st.rerun()
-        
-        # Resumo dos filtros ativos
-        st.markdown("---")
-        st.markdown("**📋 Filtros Ativos:**")
-        filtros_ativos = []
-        
-        if municipios_selecionados:
-            filtros_ativos.append(f"🏘️ {len(municipios_selecionados)} município(s)")
-        if busca_texto:
-            filtros_ativos.append(f"🔍 Busca: '{busca_texto}'")
-        if show_top_only != "Todos os municípios":
-            filtros_ativos.append(f"🎯 {show_top_only}")
-            
-        if filtros_ativos:
-            for filtro in filtros_ativos:
-                st.markdown(f"• {filtro}")
-        else:
-            st.markdown("• Nenhum filtro ativo")
-        
-        # Sugestões de análise
-        with st.expander("💡 Sugestões de Análise"):
-            st.markdown("""
-            **🎯 Análises Recomendadas:**
-            - 💎 **Premium**: Valores > R$ 25 bilhões (área)
-            - 🧡 **Alto valor**: R$ 15-25 bilhões (área)
-            - 💛 **Médio valor**: R$ 5-15 bilhões (área)
-            - 💚 **Valor acessível**: < R$ 5 bilhões (área)
-            
-            **📊 Comparações Úteis:**
-            - Relação área vs perímetro
-            - Densidade de valor por km²
-            - Análise regional (norte/sul de AL)
-            
-            **🔍 Dica**: Use busca para municípios específicos ou aplique filtros por faixa de valores!
-            """)
-        
     # Aplica filtros
     df_original = df.copy()  # Manter cópia original para estatísticas
     
     # Obter valores dos filtros do session_state ou valores padrão
     municipios_selecionados = st.session_state.get('municipios_selecionados', [])
     busca_texto = st.session_state.get('busca_texto', "")
-    show_top_only = st.session_state.get('show_top_only', "Todos os municípios")
+    show_top_only = st.session_state.get('show_top_only', "Todos")
     
     # Valores padrão para ranges baseados nos dados
     if 'Populacao' in df.columns:
@@ -1670,14 +1684,40 @@ def main():
         st.warning("⚠️ Nenhum município corresponde aos filtros aplicados. Tente ajustar os critérios.")
         df_filtered = df_original  # Usar dados originais se filtros resultarem em conjunto vazio
     
-    # Mostrar informações sobre filtros aplicados
-    if len(df_filtered) != len(df_original):
-        col1, col2 = st.columns(2)
-        with col1:
-            st.info(f"📊 Exibindo **{len(df_filtered)}** de **{len(df_original)}** municípios")
-        with col2:
-            percentual = (len(df_filtered) / len(df_original)) * 100
-            st.info(f"📈 Representa **{percentual:.1f}%** do total")
+    # Adicionar botão PDF no cabeçalho direito
+    with header_col2:
+        st.markdown("<br>", unsafe_allow_html=True)  # Espaço para alinhar com o título
+        # Criar duas colunas pequenas para alinhar o botão mais à direita
+        _, btn_col = st.columns([2, 1])
+        with btn_col:
+            if st.button("📄", help="Gerar Relatório PDF", type="secondary"):
+                with st.spinner("Gerando PDF..."):
+                    try:
+                        # Usar dados filtrados para o relatório
+                        pdf_buffer = generate_pdf_report(df_filtered)
+                        
+                        # Gerar nome do arquivo com timestamp e info de filtros
+                        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                        if len(df_filtered) != len(df_original):
+                            filename = f"relatorio_precificacao_alagoas_filtrado_{len(df_filtered)}municipios_{timestamp}.pdf"
+                        else:
+                            filename = f"relatorio_precificacao_alagoas_{timestamp}.pdf"
+                        
+                        st.download_button(
+                            label="⬇️",
+                            data=pdf_buffer.getvalue(),
+                            file_name=filename,
+                            mime="application/pdf",
+                            help="Download do Relatório PDF"
+                        )
+                        
+                        if len(df_filtered) != len(df_original):
+                            st.success(f"✅ PDF pronto ({len(df_filtered)} municípios)")
+                        else:
+                            st.success("✅ PDF pronto!")
+                            
+                    except Exception as e:
+                        st.error(f"❌ Erro: {str(e)}")
     
     # Usar dados filtrados para todas as visualizações
     df = df_filtered
@@ -1686,53 +1726,21 @@ def main():
     st.markdown("## 📈 Visão Geral")
     create_overview_metrics(df)
     
-    # Botão de exportação PDF
-    st.markdown("---")
-    col1, col2, col3 = st.columns([1, 1, 1])
-    with col2:
-        if st.button("📄 Gerar Relatório PDF", type="primary"):
-            with st.spinner("Gerando relatório PDF..."):
-                try:
-                    # Usar dados filtrados para o relatório
-                    pdf_buffer = generate_pdf_report(df)
-                    
-                    # Gerar nome do arquivo com timestamp e info de filtros
-                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                    if len(df) != len(df_original):
-                        filename = f"relatorio_precificacao_alagoas_filtrado_{len(df)}municipios_{timestamp}.pdf"
-                    else:
-                        filename = f"relatorio_precificacao_alagoas_{timestamp}.pdf"
-                    
-                    st.download_button(
-                        label="⬇️ Download do Relatório PDF",
-                        data=pdf_buffer.getvalue(),
-                        file_name=filename,
-                        mime="application/pdf",
-                        type="primary"
-                    )
-                    
-                    if len(df) != len(df_original):
-                        st.success(f"✅ Relatório PDF gerado com dados filtrados ({len(df)} municípios)!")
-                    else:
-                        st.success("✅ Relatório PDF gerado com sucesso!")
-                    
-                except Exception as e:
-                    st.error(f"❌ Erro ao gerar relatório: {str(e)}")
-    
     st.markdown("---")
     
     # Tabs para diferentes análises focadas em precificação
-    tab1, tab2, tab3, tab4, tab5 = st.tabs(["🗺️ Mapa Interativo", "🏆 Ranking de Valores", "📊 Análise Comparativa", "📈 Distribuição de Preços", "🤖 Query Builder"])
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["🗺️ Mapa Interativo", "🏆 Ranking de Valores", "📊 Análise Comparativa", "📈 Distribuição de Preços", "🤖 Query Builder", "📋 Dados & Exportação"])
     
     with tab1:
         st.markdown("### 🗺️ Mapa Interativo dos Municípios")
         st.markdown("Visualize os municípios de Alagoas com dados de precificação. As cores dos marcadores representam diferentes faixas de valores.")
         
-        # Criar e exibir o mapa
+        # Criar e exibir o mapa em tela cheia
         if 'Valor_Municipal_Area' in df_filtered.columns:
             try:
                 interactive_map = create_interactive_map(df_filtered)
-                st_folium(interactive_map, width=700, height=500)
+                # Mapa ocupando toda a largura da tela
+                st_folium(interactive_map, width=None, height=600, use_container_width=True)
                 
                 # Estatísticas do mapa
                 st.markdown("#### 📊 Estatísticas do Mapa")
@@ -1744,13 +1752,16 @@ def main():
                 
                 with col2:
                     if 'Valor_Municipal_Area' in df_filtered.columns:
-                        valor_total = df_filtered['Valor_Municipal_Area'].sum()
-                        st.metric("💰 Valor Total", f"R$ {valor_total:,.0f}")
+                        # Converter para valores numéricos e calcular total em bilhões
+                        valores_clean = pd.to_numeric(df_filtered['Valor_Municipal_Area'], errors='coerce').fillna(0)
+                        valor_total_bi = valores_clean.sum() / 1_000_000_000
+                        st.metric("💰 Valor Total", f"R$ {valor_total_bi:.2f}B")
                 
                 with col3:
                     if 'Populacao' in df_filtered.columns:
-                        pop_total = df_filtered['Populacao'].sum()
-                        st.metric("👥 População Total", f"{pop_total:,}")
+                        pop_clean = corrigir_populacao(df_filtered['Populacao'])
+                        pop_total = int(pop_clean.sum())
+                        st.metric("👥 População Total", formatar_numero_brasileiro(pop_total))
                 
             except Exception as e:
                 st.error(f"❌ Erro ao carregar o mapa: {str(e)}")
@@ -1775,10 +1786,10 @@ def main():
                 valores_valid = valores_clean.dropna()
                 
                 if not valores_valid.empty:
-                    st.metric("💰 Maior Valor", f"R$ {valores_valid.max()/1_000_000_000:.1f}B")
-                    st.metric("📊 Valor Médio", f"R$ {valores_valid.mean()/1_000_000_000:.1f}B") 
-                    st.metric("📉 Menor Valor", f"R$ {valores_valid.min()/1_000_000:.0f}M")
-                    st.metric("🎯 Total Geral", f"R$ {valores_valid.sum()/1_000_000_000:.1f}B")
+                    st.metric("💰 Maior Valor", f"R$ {valores_valid.max()/1_000_000_000:.2f}B")
+                    st.metric("📊 Valor Médio", f"R$ {valores_valid.mean()/1_000_000_000:.2f}B") 
+                    st.metric("📉 Menor Valor", f"R$ {valores_valid.min()/1_000_000:.2f}M")
+                    st.metric("🎯 Total Geral", f"R$ {valores_valid.sum()/1_000_000_000:.2f}B")
                 else:
                     st.info("📊 Nenhum dado de valor disponível para os filtros aplicados")
         
@@ -1825,7 +1836,7 @@ def main():
                     st.metric("📊 Dados Válidos", f"{len(valid_data)}")
                 with col3:
                     ratio_medio = (valid_data['Area'] / valid_data['Perimetro']).mean()
-                    st.metric("⚖️ Ratio Médio (Área/Perímetro)", f"{ratio_medio:.0f}")
+                    st.metric("⚖️ Ratio Médio (Área/Perímetro)", f"{ratio_medio:.2f}")
     
     with tab4:
         st.markdown("### 📊 Distribuição de Preços por Área")
@@ -1864,11 +1875,11 @@ def main():
             valor_clean = pd.to_numeric(df['Valor_Municipal_Area'], errors='coerce').fillna(0)
             
             with col1:
-                st.metric("Valor Médio", f"R$ {valor_clean.mean():,.0f}")
+                st.metric("Valor Médio", formatar_valor_grande(valor_clean.mean()))
             with col2:
-                st.metric("Valor Máximo", f"R$ {valor_clean.max():,.0f}")
+                st.metric("Valor Máximo", formatar_valor_grande(valor_clean.max()))
             with col3:
-                st.metric("Valor Mínimo", f"R$ {valor_clean.min():,.0f}")
+                st.metric("Valor Mínimo", formatar_valor_grande(valor_clean.min()))
     
                 st.info("💡 Dica: Certifique-se de que os dados de localização estão disponíveis.")
         else:
@@ -1879,22 +1890,130 @@ def main():
         st.markdown("# 🤖 Query Builder - Construtor de Consultas")
         create_query_builder_interface(df_filtered)
     
-    # Footer
+    # Tab 6: Dados & Exportação
+    with tab6:
+        st.markdown("# 📋 Dados & Exportação")
+        
+        col1, col2 = st.columns([2, 1])
+        
+        with col1:
+            st.markdown("### 🔍 Filtros da Tabela")
+            
+            # Filtros específicos para a tabela
+            filter_col1, filter_col2 = st.columns(2)
+            
+            with filter_col1:
+                # Filtro por município
+                if 'Municipio' in df.columns:
+                    municipios_disponiveis = ['Todos'] + sorted(df['Municipio'].unique().tolist())
+                    municipio_filtro = st.selectbox("🏘️ Filtrar por Município", municipios_disponiveis)
+                else:
+                    municipio_filtro = None
+                    st.warning("⚠️ Coluna de município não encontrada")
+                
+            with filter_col2:
+                # Filtro por faixa de população
+                if 'Populacao' in df.columns:
+                    pop_clean = corrigir_populacao(df['Populacao'])
+                    pop_min, pop_max = int(pop_clean.min()), int(pop_clean.max())
+                    pop_filtro = st.slider("👥 Faixa de População", pop_min, pop_max, (pop_min, pop_max), format="%d")
+                else:
+                    pop_filtro = None
+        
+        with col2:
+            st.markdown("### 📊 Estatísticas Rápidas")
+            st.metric("📍 Total de Registros", len(df))
+            if 'Municipio' in df.columns:
+                st.metric("🏘️ Municípios", df['Municipio'].nunique())
+            else:
+                st.metric("🏘️ Municípios", "N/A")
+            st.metric("📋 Colunas", len(df.columns))
+            
+            # Botão de download
+            st.markdown("### 💾 Exportar Dados")
+            csv_data = df.to_csv(index=False)
+            st.download_button(
+                label="⬇️ Baixar CSV Completo",
+                data=csv_data,
+                file_name=f"precificacao_alagoas_{pd.Timestamp.now().strftime('%Y%m%d_%H%M')}.csv",
+                mime="text/csv"
+            )
+        
+        # Aplicar filtros na tabela
+        df_tabela = df.copy()
+        
+        if municipio_filtro and municipio_filtro != 'Todos' and 'Municipio' in df.columns:
+            df_tabela = df_tabela[df_tabela['Municipio'] == municipio_filtro]
+            
+        if pop_filtro and 'Populacao' in df.columns:
+            pop_clean = corrigir_populacao(df_tabela['Populacao'])
+            df_tabela = df_tabela[(pop_clean >= pop_filtro[0]) & (pop_clean <= pop_filtro[1])]
+        
+        # Exibir tabela filtrada
+        st.markdown("### 📋 Tabela de Dados")
+        
+        if len(df_tabela) > 0:
+            st.info(f"📊 Exibindo {len(df_tabela)} de {len(df)} registros")
+            
+            # Opções de visualização
+            colunas_padrao = []
+            if 'Municipio' in df.columns:
+                colunas_padrao.append('Municipio')
+            if 'Populacao' in df.columns:
+                colunas_padrao.append('Populacao')
+            if 'Valor_Municipal_Area' in df.columns:
+                colunas_padrao.append('Valor_Municipal_Area')
+            if 'Nota_Media' in df.columns:
+                colunas_padrao.append('Nota_Media')
+            
+            # Se não encontrou as colunas padrão, usar as 5 primeiras
+            if not colunas_padrao:
+                colunas_padrao = df.columns[:5].tolist()
+                
+            show_cols = st.multiselect(
+                "🔍 Selecionar Colunas para Exibir",
+                options=df.columns.tolist(),
+                default=colunas_padrao,
+                help="Escolha quais colunas deseja visualizar na tabela"
+            )
+            
+            if show_cols:
+                st.dataframe(
+                    df_tabela[show_cols], 
+                    use_container_width=True,
+                    height=400
+                )
+            else:
+                st.warning("⚠️ Selecione pelo menos uma coluna para exibir")
+        else:
+            st.warning("⚠️ Nenhum dado encontrado com os filtros aplicados")
+        
+        # Informações técnicas em expansor
+        with st.expander("ℹ️ Informações Técnicas"):
+            st.markdown(f"""
+            **Fonte dos dados:** CSV de Precificação - Municípios de Alagoas
+            
+            **Total de registros:** {formatar_numero_brasileiro(len(df))}
+            
+            **Colunas disponíveis:** {len(df.columns)}
+            
+            **Última atualização:** {pd.Timestamp.now().strftime('%d/%m/%Y %H:%M')}
+            
+            **Estrutura dos dados:**
+            """)
+            
+            # Mostrar tipos de dados
+            info_df = pd.DataFrame({
+                'Coluna': df.columns,
+                'Tipo': df.dtypes.astype(str),
+                'Valores Únicos': [df[col].nunique() for col in df.columns],
+                'Nulos': [df[col].isnull().sum() for col in df.columns]
+            })
+            st.dataframe(info_df, use_container_width=True)
+
+    # Footer simplificado
     st.markdown("---")
-    st.markdown("### 📋 Dados Completos")
-    st.dataframe(df, width='stretch')
-    
-    # Informações técnicas
-    with st.expander("ℹ️ Informações Técnicas"):
-        st.markdown(f"""
-        **Fonte dos dados:** CSV de Precificação - Municípios de Alagoas
-        
-        **Total de registros:** {len(df)}
-        
-        **Colunas disponíveis:** {len(df.columns)}
-        
-        **Última atualização:** {pd.Timestamp.now().strftime('%d/%m/%Y %H:%M')}
-        """)
+    st.markdown("*💡 Dica: Use a aba 'Dados & Exportação' para visualizar e baixar os dados completos*")
 
 if __name__ == "__main__":
     main()
