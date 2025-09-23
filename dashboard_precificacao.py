@@ -71,14 +71,14 @@ def formatar_valor_brasileiro(valor):
 
 def corrigir_populacao(populacao_series):
     """
-    Corrige a interpretação da população que usa ponto como separador de milhares.
-    Exemplo: 51.783 deve ser interpretado como 51,783 habitantes
+    CORRIGIDO: Interpreta corretamente os pontos como separadores de milhares.
+    Exemplo: '953.326' deve ser interpretado como 953.326 habitantes (não como float)
     """
     try:
-        # Converte para string, remove pontos e converte para inteiro
-        return populacao_series.astype(str).str.replace('.', '').str.replace(',', '').astype(int)
+        # Converte para string e remove pontos (separadores de milhares brasileiros)
+        return populacao_series.astype(str).str.replace('.', '').astype(int)
     except:
-        # Fallback: tenta conversão direta
+        # Fallback: tenta conversão com preenchimento de NaN
         return pd.to_numeric(populacao_series, errors='coerce').fillna(0).astype(int)
 
 # =============================================================================
@@ -293,8 +293,9 @@ def load_data():
             st.error("Nenhum arquivo CSV encontrado!")
             return pd.DataFrame()
         
-        # Carrega o CSV
-        df = pd.read_csv(csv_file)
+        # Carrega o CSV especificando que a coluna Populacao deve ser tratada como string
+        # para preservar os separadores de milhares brasileiros
+        df = pd.read_csv(csv_file, dtype={'Populacao': str})
         
         # Limpeza e processamento dos dados
         # Remove colunas desnecessárias
