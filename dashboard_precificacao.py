@@ -81,6 +81,65 @@ def corrigir_populacao(populacao_series):
         # Fallback: tenta conversão com preenchimento de NaN
         return pd.to_numeric(populacao_series, errors='coerce').fillna(0).astype(int)
 
+def converter_numero_brasileiro(valor_str):
+    """
+    NOVA FUNÇÃO: Converte números no formato brasileiro para Python.
+    
+    Formatos suportados:
+    - '20.553.313.781,77' → 20553313781.77 (valores monetários)
+    - '343.700.899,36' → 343700899.36 (áreas com decimais)
+    - '2.708.600' → 2708600 (códigos/inteiros)
+    - '163' → 163 (valores simples)
+    """
+    try:
+        if pd.isna(valor_str) or valor_str in ['', 'nan', 'NaN']:
+            return 0
+            
+        valor_str = str(valor_str).strip()
+        
+        if ',' in valor_str:
+            # Tem vírgula decimal - é um valor com decimais
+            partes = valor_str.split(',')
+            parte_inteira = partes[0].replace('.', '')  # Remove pontos dos milhares
+            parte_decimal = partes[1]
+            return float(f"{parte_inteira}.{parte_decimal}")
+        else:
+            # Sem vírgula - remove pontos e converte para int
+            return int(valor_str.replace('.', ''))
+    except:
+        return 0
+
+def corrigir_colunas_brasileiras(df):
+    """
+    Aplica correção de formato brasileiro em todas as colunas numéricas relevantes
+    """
+    # Colunas que sabemos que estão em formato brasileiro
+    colunas_brasileiras = [
+        'Populacao', 'Cd Mun', 'Num Imoveis',
+        'Area Cidade', 'Area Georef', 'Area Car Total', 'Area Car Media',
+        'Perimetro Total Car', 'Perimetro Medio Car', 'Area Max Perim',
+        'Valor Mun Perim', 'Valor Mun Area'
+    ]
+    
+    # Também incluir colunas de notas que usam vírgula decimal
+    colunas_notas = [col for col in df.columns if 'Nota' in col and df[col].dtype == 'object']
+    colunas_brasileiras.extend(colunas_notas)
+    
+    # Também incluir colunas de percentual
+    colunas_percent = [col for col in df.columns if 'Percent' in col and df[col].dtype == 'object']
+    colunas_brasileiras.extend(colunas_percent)
+    
+    for col in colunas_brasileiras:
+        if col in df.columns:
+            try:
+                df[col] = df[col].apply(converter_numero_brasileiro)
+            except Exception as e:
+                print(f"Erro ao converter coluna {col}: {e}")
+                # Mantém original se der erro
+                pass
+    
+    return df
+
 # =============================================================================
 # CONFIGURAÇÃO DA PÁGINA E ESTILOS
 # =============================================================================
@@ -293,19 +352,15 @@ def load_data():
             st.error("Nenhum arquivo CSV encontrado!")
             return pd.DataFrame()
         
-        # Carrega o CSV especificando que a coluna Populacao deve ser tratada como string
-        # para preservar os separadores de milhares brasileiros
-        df = pd.read_csv(csv_file, dtype={'Populacao': str})
+        # Carrega o CSV como string para preservar formatação brasileira
+        df = pd.read_csv(csv_file, dtype=str)
+        
+        # NOVA CORREÇÃO: Aplica conversão brasileira em todas as colunas numéricas
+        df = corrigir_colunas_brasileiras(df)
         
         # Limpeza e processamento dos dados
         # Remove colunas desnecessárias
         df = df.drop(['_mb_row_id', 'Unnamed Column'], axis=1, errors='ignore')
-        
-        # Aplica a limpeza às colunas numéricas
-        numeric_columns = df.select_dtypes(include=['object']).columns
-        for col in numeric_columns:
-            if col not in ['Nm Mun', 'Sigla Uf', 'Ckey']:
-                df[col] = df[col].apply(clean_brazilian_number)
         
         # Renomeia colunas para facilitar o uso
         column_mapping = {
