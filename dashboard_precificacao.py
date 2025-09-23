@@ -423,12 +423,12 @@ def create_overview_metrics(df):
             if len(area_valid) > 0:
                 valor_medio = area_valid.mean()
                 st.metric(
-                    "� Valor Médio",
+                    "Valor Médio",
                     f"R$ {valor_medio/1_000_000:.2f}M".replace('.', ','),
                     help="Valor médio por município (área) em milhões"
                 )
             else:
-                st.metric("� Valor Médio", "N/A")
+                st.metric("Valor Médio", "N/A")
         else:
             st.metric("Valor Médio", "N/A")
     
@@ -1954,7 +1954,7 @@ def main():
                 
                 with col1:
                     total_municipios = len(df_filtered)
-                    st.metric("�️ Total de Municípios", total_municipios)
+                    st.metric("Total de Municípios", total_municipios)
                 
                 with col2:
                     if 'Valor_Municipal_Area' in df_filtered.columns:
@@ -1976,7 +1976,7 @@ def main():
             st.warning("Dados de valor municipal não disponíveis para o mapa.")
 
     with tab2:
-        st.markdown("### �🏆 Ranking dos Municípios por Valor")
+        st.markdown("### Ranking dos Municípios por Valor")
         
         col1, col2 = st.columns([2, 1])
         
