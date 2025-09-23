@@ -570,13 +570,13 @@ def create_value_per_population_chart(df):
     return fig
 
 def create_price_distribution_chart(df):
-    """Cria gráfico de distribuição de preços"""
+    """Cria gráfico de distribuição de preços melhorado"""
     if 'Valor_Municipal_Area' not in df.columns:
         st.warning("Dados de valor não disponíveis")
         return None
     
     df_clean = df.copy()
-    df_clean['Valor_Area'] = pd.to_numeric(df_clean['Valor_Municipal_Area'], errors='coerce').fillna(0)
+    df_clean['Valor_Area'] = df_clean['Valor_Municipal_Area'].apply(clean_brazilian_number)
     df_clean = df_clean[df_clean['Valor_Area'] > 0]
     
     if df_clean.empty:
@@ -586,20 +586,167 @@ def create_price_distribution_chart(df):
     # Converte para bilhões
     df_clean['Valor_Bilhoes'] = df_clean['Valor_Area'] / 1_000_000_000
     
+    # Cria histograma com estilo melhorado
     fig = px.histogram(
         df_clean,
         x='Valor_Bilhoes',
-        nbins=20,
-        title="📊 Distribuição de Valores por Área",
-        labels={'Valor_Bilhoes': 'Valor (R$ Bilhões)', 'count': 'Quantidade de Municípios'},
-        color_discrete_sequence=['#2E86AB']
+        nbins=25,
+        title="📊 Distribuição de Valores Municipais por Área",
+        labels={'Valor_Bilhoes': 'Valor Municipal (R$ Bilhões)', 'count': 'Quantidade de Municípios'},
+        color_discrete_sequence=['#00D4AA'],
+        opacity=0.8
+    )
+    
+    # Adiciona linha de média
+    media = df_clean['Valor_Bilhoes'].mean()
+    fig.add_vline(
+        x=media, 
+        line_dash="dash", 
+        line_color="red",
+        annotation_text=f"Média: R$ {media:.1f}B",
+        annotation_position="top right"
+    )
+    
+    # Melhorias visuais
+    fig.update_traces(
+        marker_line_color='white',
+        marker_line_width=1.5,
+        hovertemplate='<b>Faixa de Valor:</b> R$ %{x:.1f}B<br>' +
+                      '<b>Quantidade:</b> %{y} municípios<br>' +
+                      '<extra></extra>'
+    )
+    
+    fig.update_layout(
+        height=500,
+        title_font_size=18,
+        title_x=0.5,
+        showlegend=False,
+        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor='rgba(0,0,0,0)',
+        font=dict(size=12),
+        margin=dict(l=60, r=60, t=100, b=60),
+        xaxis=dict(
+            gridcolor='lightgray',
+            gridwidth=0.5,
+            title_font_size=14
+        ),
+        yaxis=dict(
+            gridcolor='lightgray',
+            gridwidth=0.5,
+            title_font_size=14
+        )
+    )
+    
+    return fig
+
+def create_price_by_population_chart(df):
+    """Cria gráfico de valor por população"""
+    if 'Valor_Municipal_Area' not in df.columns or 'População' not in df.columns:
+        return None
+    
+    df_clean = df.copy()
+    df_clean['Valor_Area'] = df_clean['Valor_Municipal_Area'].apply(clean_brazilian_number)
+    df_clean['Pop'] = df_clean['População'].apply(clean_brazilian_number)
+    
+    # Remove valores inválidos
+    df_clean = df_clean[(df_clean['Valor_Area'] > 0) & (df_clean['Pop'] > 0)]
+    
+    if df_clean.empty:
+        return None
+    
+    # Converte unidades
+    df_clean['Valor_Bilhoes'] = df_clean['Valor_Area'] / 1_000_000_000
+    df_clean['Pop_Milhares'] = df_clean['Pop'] / 1000
+    df_clean['Valor_per_Capita'] = df_clean['Valor_Area'] / df_clean['Pop']
+    
+    # Cria scatter plot
+    fig = px.scatter(
+        df_clean,
+        x='Pop_Milhares',
+        y='Valor_Bilhoes',
+        size='Valor_per_Capita',
+        hover_name='Município',
+        title="💰 Valor Municipal vs População",
+        labels={
+            'Pop_Milhares': 'População (milhares)',
+            'Valor_Bilhoes': 'Valor Municipal (R$ Bilhões)',
+            'Valor_per_Capita': 'Valor per Capita (R$)'
+        },
+        color='Valor_per_Capita',
+        color_continuous_scale='Viridis',
+        size_max=20
+    )
+    
+    fig.update_traces(
+        hovertemplate='<b>%{hovertext}</b><br>' +
+                      'População: %{x:.0f}k habitantes<br>' +
+                      'Valor Municipal: R$ %{y:.1f}B<br>' +
+                      'Valor per Capita: R$ %{marker.size:,.0f}<br>' +
+                      '<extra></extra>'
+    )
+    
+    fig.update_layout(
+        height=500,
+        title_font_size=18,
+        title_x=0.5,
+        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor='rgba(0,0,0,0)',
+        font=dict(size=12),
+        margin=dict(l=60, r=60, t=100, b=60),
+        coloraxis_colorbar_title="Valor per Capita<br>(R$)"
+    )
+    
+    return fig
+
+def create_price_boxplot(df):
+    """Cria boxplot da distribuição de preços"""
+    if 'Valor_Municipal_Area' not in df.columns:
+        return None
+    
+    df_clean = df.copy()
+    df_clean['Valor_Area'] = df_clean['Valor_Municipal_Area'].apply(clean_brazilian_number)
+    df_clean = df_clean[df_clean['Valor_Area'] > 0]
+    
+    if df_clean.empty:
+        return None
+    
+    # Converte para bilhões
+    df_clean['Valor_Bilhoes'] = df_clean['Valor_Area'] / 1_000_000_000
+    
+    # Cria boxplot
+    fig = px.box(
+        df_clean,
+        y='Valor_Bilhoes',
+        title="📦 Distribuição Estatística dos Valores",
+        labels={'Valor_Bilhoes': 'Valor Municipal (R$ Bilhões)'},
+        color_discrete_sequence=['#FF6B6B']
+    )
+    
+    fig.update_traces(
+        hovertemplate='<b>Estatísticas:</b><br>' +
+                      'Q1: %{q1:.1f}B<br>' +
+                      'Mediana: %{median:.1f}B<br>' +
+                      'Q3: %{q3:.1f}B<br>' +
+                      'Máximo: %{upperfence:.1f}B<br>' +
+                      'Mínimo: %{lowerfence:.1f}B<br>' +
+                      '<extra></extra>',
+        boxpoints='outliers'
     )
     
     fig.update_layout(
         height=400,
         title_font_size=16,
+        title_x=0.5,
         showlegend=False,
-        margin=dict(l=50, r=50, t=80, b=50)
+        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor='rgba(0,0,0,0)',
+        font=dict(size=12),
+        margin=dict(l=60, r=60, t=80, b=60),
+        yaxis=dict(
+            gridcolor='lightgray',
+            gridwidth=0.5,
+            title_font_size=14
+        )
     )
     
     return fig
@@ -1898,13 +2045,56 @@ def main():
                     st.metric("⚖️ Ratio Médio (Área/Perímetro)", f"{ratio_medio:.2f}".replace('.', ','))
     
     with tab4:
-        st.markdown("### 📊 Distribuição de Preços por Área")
+        st.markdown("# � Distribuição de Preços")
+        st.markdown("---")
         
-        fig_distribution = create_price_distribution_chart(df_filtered)
-        if fig_distribution:
-            st.plotly_chart(fig_distribution, use_container_width=True)
+        # Métricas gerais
+        if 'Valor_Municipal_Area' in df_filtered.columns:
+            valores_clean = df_filtered['Valor_Municipal_Area'].apply(clean_brazilian_number)
+            valores_valid = valores_clean.dropna()
+            
+            if not valores_valid.empty:
+                # Converte para bilhões para as métricas
+                valores_bi = valores_valid / 1_000_000_000
+                
+                col1, col2, col3, col4 = st.columns(4)
+                with col1:
+                    st.metric("💰 Valor Total", f"R$ {valores_bi.sum():.1f}B".replace('.', ','))
+                with col2:
+                    st.metric("📊 Valor Médio", f"R$ {valores_bi.mean():.1f}B".replace('.', ','))
+                with col3:
+                    st.metric("🏆 Valor Máximo", f"R$ {valores_bi.max():.1f}B".replace('.', ','))
+                with col4:
+                    st.metric("📍 Municípios", f"{len(valores_valid)}")
         
-        # Faixas de preço
+        st.markdown("---")
+        
+        # Layout em duas colunas para os gráficos principais
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            # Gráfico de distribuição principal
+            fig_distribution = create_price_distribution_chart(df_filtered)
+            if fig_distribution:
+                st.plotly_chart(fig_distribution, use_container_width=True)
+                
+        with col2:
+            # Boxplot para mostrar estatísticas
+            fig_boxplot = create_price_boxplot(df_filtered)
+            if fig_boxplot:
+                st.plotly_chart(fig_boxplot, use_container_width=True)
+        
+        # Gráfico de dispersão (linha completa)
+        st.markdown("### 🎯 Relação Valor vs População")
+        fig_scatter = create_price_by_population_chart(df_filtered)
+        if fig_scatter:
+            st.plotly_chart(fig_scatter, use_container_width=True)
+        else:
+            st.info("💡 Dados de população necessários para análise comparativa.")
+        
+        st.markdown("---")
+        
+        # Análise por faixas de preço
         st.markdown("### 💼 Análise por Faixas de Preço")
         if 'Valor_Municipal_Area' in df_filtered.columns:
             valores_clean = df_filtered['Valor_Municipal_Area'].apply(clean_brazilian_number)
@@ -1914,7 +2104,7 @@ def main():
                 # Converte para bilhões
                 valores_bi = valores_valid / 1_000_000_000
                 
-                # Define faixas
+                # Define faixas melhoradas
                 faixas = {
                     "💚 Baixo (< 5B)": (valores_bi < 5).sum(),
                     "💛 Médio (5B - 15B)": ((valores_bi >= 5) & (valores_bi < 15)).sum(),
@@ -1922,27 +2112,60 @@ def main():
                     "❤️ Premium (≥ 25B)": (valores_bi >= 25).sum()
                 }
                 
+                # Layout das faixas
                 col1, col2, col3, col4 = st.columns(4)
                 cols = [col1, col2, col3, col4]
                 
                 for i, (faixa, count) in enumerate(faixas.items()):
                     with cols[i]:
                         percentage = (count / len(valores_bi) * 100) if len(valores_bi) > 0 else 0
-                        st.metric(faixa, f"{count}", f"{percentage:.1f}%")
-            
-            # Limpa os dados financeiros
-            valor_clean = pd.to_numeric(df['Valor_Municipal_Area'], errors='coerce').fillna(0)
-            
-            with col1:
-                st.metric("Valor Médio", formatar_valor_grande(valor_clean.mean()))
-            with col2:
-                st.metric("Valor Máximo", formatar_valor_grande(valor_clean.max()))
-            with col3:
-                st.metric("Valor Mínimo", formatar_valor_grande(valor_clean.min()))
-    
-                st.info("💡 Dica: Certifique-se de que os dados de localização estão disponíveis.")
+                        st.metric(
+                            faixa, 
+                            f"{count} municípios", 
+                            f"{percentage:.1f}% do total".replace('.', ',')
+                        )
+                
+                # Gráfico de pizza das faixas
+                st.markdown("### 🍰 Distribuição por Faixas")
+                
+                # Cria dados para o gráfico de pizza
+                labels = list(faixas.keys())
+                values = list(faixas.values())
+                
+                # Remove faixas vazias
+                filtered_data = [(label, value) for label, value in zip(labels, values) if value > 0]
+                
+                if filtered_data:
+                    labels_filtered, values_filtered = zip(*filtered_data)
+                    
+                    fig_pie = px.pie(
+                        values=values_filtered,
+                        names=labels_filtered,
+                        title="Distribuição de Municípios por Faixa de Valor",
+                        color_discrete_sequence=['#00D4AA', '#FFD700', '#FF8C00', '#FF6B6B']
+                    )
+                    
+                    fig_pie.update_traces(
+                        textposition='inside',
+                        textinfo='percent+label',
+                        hovertemplate='<b>%{label}</b><br>' +
+                                      'Municípios: %{value}<br>' +
+                                      'Percentual: %{percent}<br>' +
+                                      '<extra></extra>'
+                    )
+                    
+                    fig_pie.update_layout(
+                        height=400,
+                        title_font_size=16,
+                        title_x=0.5,
+                        font=dict(size=12),
+                        margin=dict(l=60, r=60, t=80, b=60)
+                    )
+                    
+                    st.plotly_chart(fig_pie, use_container_width=True)
+                
         else:
-            st.warning("⚠️ Dados de valor municipal não disponíveis para o mapa.")
+            st.warning("⚠️ Dados de valor municipal não disponíveis para análise de faixas.")
 
     # Tab 5: Query Builder
     with tab5:
