@@ -2175,74 +2175,91 @@ def main():
     # Tab 6: Dados & Exportação
     with tab6:
         st.markdown("# Dados & Exportação")
+        st.markdown("*Central de dados e ferramentas de exportação para análise externa*")
+        st.markdown("---")
         
-        col1, col2 = st.columns([2, 1])
+        # Seção de estatísticas gerais
+        st.markdown("## Resumo dos Dados")
+        
+        col1, col2, col3, col4, col5 = st.columns(5)
         
         with col1:
-            st.markdown("### Filtros da Tabela")
-            
-            # Filtros específicos para a tabela
-            filter_col1, filter_col2 = st.columns(2)
-            
-            with filter_col1:
-                # Filtro por município
-                if 'Municipio' in df.columns:
-                    municipios_disponiveis = ['Todos'] + sorted(df['Municipio'].unique().tolist())
-                    municipio_filtro = st.selectbox("🏘️ Filtrar por Município", municipios_disponiveis)
-                else:
-                    municipio_filtro = None
-                    st.warning("⚠️ Coluna de município não encontrada")
-                
-            with filter_col2:
-                # Filtro por faixa de população
-                if 'Populacao' in df.columns:
-                    pop_clean = corrigir_populacao(df['Populacao'])
-                    pop_min, pop_max = int(pop_clean.min()), int(pop_clean.max())
-                    pop_filtro = st.slider("👥 Faixa de População", pop_min, pop_max, (pop_min, pop_max), format="%d")
-                else:
-                    pop_filtro = None
-        
+            st.metric("Total de Registros", formatar_numero_brasileiro(len(df)))
         with col2:
-            st.markdown("### Estatísticas Rápidas")
-            st.metric("📍 Total de Registros", len(df))
-            if 'Municipio' in df.columns:
-                st.metric("🏘️ Municípios", df['Municipio'].nunique())
+            if 'Município' in df.columns:
+                st.metric("Municípios", df['Município'].nunique())
             else:
-                st.metric("🏘️ Municípios", "N/A")
-            st.metric("📋 Colunas", len(df.columns))
+                st.metric("Municípios", "N/A")
+        with col3:
+            st.metric("Colunas Disponíveis", len(df.columns))
+        with col4:
+            # Calcular qualidade dos dados
+            dados_completos = df.dropna().shape[0]
+            qualidade = (dados_completos / len(df)) * 100 if len(df) > 0 else 0
+            st.metric("Qualidade dos Dados", f"{qualidade:.1f}%".replace('.', ','))
+        with col5:
+            # Última atualização
+            ultima_atualizacao = pd.Timestamp.now().strftime('%d/%m/%Y')
+            st.metric("Última Atualização", ultima_atualizacao)
+        
+        st.markdown("---")
+        
+        # Seção de filtros avançados
+        st.markdown("## Filtros e Visualização")
+        
+        col_filtros, col_preview = st.columns([1, 2])
+        
+        with col_filtros:
+            st.markdown("### Filtros Avançados")
             
-            # Botão de download
-            st.markdown("### Exportar Dados")
-            csv_data = df.to_csv(index=False)
-            st.download_button(
-                label="⬇️ Baixar CSV Completo",
-                data=csv_data,
-                file_name=f"precificacao_alagoas_{pd.Timestamp.now().strftime('%Y%m%d_%H%M')}.csv",
-                mime="text/csv"
-            )
-        
-        # Aplicar filtros na tabela
-        df_tabela = df.copy()
-        
-        if municipio_filtro and municipio_filtro != 'Todos' and 'Municipio' in df.columns:
-            df_tabela = df_tabela[df_tabela['Municipio'] == municipio_filtro]
+            # Filtro por município
+            if 'Município' in df.columns:
+                municipios_disponiveis = ['Todos'] + sorted(df['Município'].unique().tolist())
+                municipio_filtro = st.selectbox("Município", municipios_disponiveis)
+            else:
+                municipio_filtro = None
+                st.warning("Coluna de município não encontrada")
             
-        if pop_filtro and 'Populacao' in df.columns:
-            pop_clean = corrigir_populacao(df_tabela['Populacao'])
-            df_tabela = df_tabela[(pop_clean >= pop_filtro[0]) & (pop_clean <= pop_filtro[1])]
-        
-        # Exibir tabela filtrada
-        st.markdown("### Tabela de Dados")
-        
-        if len(df_tabela) > 0:
-            st.info(f"📊 Exibindo {len(df_tabela)} de {len(df)} registros")
+            # Filtro por faixa de população
+            if 'População' in df.columns:
+                pop_clean = corrigir_populacao(df['População'])
+                pop_min, pop_max = int(pop_clean.min()), int(pop_clean.max())
+                pop_filtro = st.slider(
+                    "Faixa de População", 
+                    pop_min, pop_max, (pop_min, pop_max),
+                    format="%d",
+                    help="Selecione a faixa de população para filtrar"
+                )
+            else:
+                pop_filtro = None
             
-            # Opções de visualização
+            # Filtro por valor municipal
+            if 'Valor_Municipal_Area' in df.columns:
+                valores_clean = df['Valor_Municipal_Area'].apply(clean_brazilian_number)
+                valores_valid = valores_clean.dropna()
+                if not valores_valid.empty:
+                    valor_min = float(valores_valid.min())
+                    valor_max = float(valores_valid.max())
+                    valor_filtro = st.slider(
+                        "Faixa de Valor Municipal (R$ Bilhões)",
+                        valor_min / 1_000_000_000,
+                        valor_max / 1_000_000_000,
+                        (valor_min / 1_000_000_000, valor_max / 1_000_000_000),
+                        format="%.1f",
+                        help="Filtrar por valor municipal em bilhões"
+                    )
+                else:
+                    valor_filtro = None
+            else:
+                valor_filtro = None
+            
+            # Seleção de colunas
+            st.markdown("### Colunas para Exibir")
             colunas_padrao = []
-            if 'Municipio' in df.columns:
-                colunas_padrao.append('Municipio')
-            if 'Populacao' in df.columns:
-                colunas_padrao.append('Populacao')
+            if 'Município' in df.columns:
+                colunas_padrao.append('Município')
+            if 'População' in df.columns:
+                colunas_padrao.append('População')
             if 'Valor_Municipal_Area' in df.columns:
                 colunas_padrao.append('Valor_Municipal_Area')
             if 'Nota_Media' in df.columns:
@@ -2253,49 +2270,207 @@ def main():
                 colunas_padrao = df.columns[:5].tolist()
                 
             show_cols = st.multiselect(
-                "🔍 Selecionar Colunas para Exibir",
+                "Selecionar Colunas",
                 options=df.columns.tolist(),
                 default=colunas_padrao,
-                help="Escolha quais colunas deseja visualizar na tabela"
+                help="Escolha quais colunas deseja visualizar"
             )
+        
+        with col_preview:
+            st.markdown("### Preview dos Dados")
             
-            if show_cols:
+            # Aplicar filtros
+            df_filtrado = df.copy()
+            
+            if municipio_filtro and municipio_filtro != 'Todos' and 'Município' in df.columns:
+                df_filtrado = df_filtrado[df_filtrado['Município'] == municipio_filtro]
+                
+            if pop_filtro and 'População' in df.columns:
+                pop_clean = corrigir_populacao(df_filtrado['População'])
+                df_filtrado = df_filtrado[(pop_clean >= pop_filtro[0]) & (pop_clean <= pop_filtro[1])]
+            
+            if valor_filtro and 'Valor_Municipal_Area' in df.columns:
+                valores_clean = df_filtrado['Valor_Municipal_Area'].apply(clean_brazilian_number)
+                valor_min_filtro = valor_filtro[0] * 1_000_000_000
+                valor_max_filtro = valor_filtro[1] * 1_000_000_000
+                df_filtrado = df_filtrado[(valores_clean >= valor_min_filtro) & (valores_clean <= valor_max_filtro)]
+            
+            # Mostrar informações do filtro
+            if len(df_filtrado) != len(df):
+                st.info(f"Filtros aplicados: {len(df_filtrado)} de {len(df)} registros selecionados")
+            
+            # Exibir preview da tabela
+            if len(df_filtrado) > 0 and show_cols:
                 st.dataframe(
-                    df_tabela[show_cols], 
+                    df_filtrado[show_cols].head(10), 
                     use_container_width=True,
-                    height=400
+                    height=300
+                )
+                
+                if len(df_filtrado) > 10:
+                    st.caption(f"Exibindo 10 primeiros registros de {len(df_filtrado)} total")
+            elif not show_cols:
+                st.warning("Selecione pelo menos uma coluna para visualizar")
+            else:
+                st.warning("Nenhum dado encontrado com os filtros aplicados")
+        
+        st.markdown("---")
+        
+        # Seção de exportação
+        st.markdown("## Exportação de Dados")
+        
+        col_export1, col_export2, col_export3 = st.columns(3)
+        
+        with col_export1:
+            st.markdown("### Formato CSV")
+            if len(df_filtrado) > 0:
+                csv_data = df_filtrado.to_csv(index=False)
+                st.download_button(
+                    label="📄 Baixar CSV Filtrado",
+                    data=csv_data,
+                    file_name=f"dados_filtrados_alagoas_{pd.Timestamp.now().strftime('%Y%m%d_%H%M')}.csv",
+                    mime="text/csv",
+                    help="Download dos dados com filtros aplicados"
+                )
+                
+                csv_completo = df.to_csv(index=False)
+                st.download_button(
+                    label="📊 Baixar CSV Completo",
+                    data=csv_completo,
+                    file_name=f"precificacao_completa_alagoas_{pd.Timestamp.now().strftime('%Y%m%d_%H%M')}.csv",
+                    mime="text/csv",
+                    help="Download de todos os dados sem filtros"
                 )
             else:
-                st.warning("⚠️ Selecione pelo menos uma coluna para exibir")
-        else:
-            st.warning("⚠️ Nenhum dado encontrado com os filtros aplicados")
+                st.error("Nenhum dado disponível para exportar")
         
-        # Informações técnicas em expansor
-        with st.expander("ℹ️ Informações Técnicas"):
-            st.markdown(f"""
-            **Fonte dos dados:** CSV de Precificação - Municípios de Alagoas
+        with col_export2:
+            st.markdown("### Formato Excel")
+            if len(df_filtrado) > 0:
+                try:
+                    # Criar arquivo Excel em memória
+                    from io import BytesIO
+                    import openpyxl
+                    
+                    buffer = BytesIO()
+                    
+                    with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+                        df_filtrado.to_excel(writer, sheet_name='Dados_Filtrados', index=False)
+                        if len(df_filtrado) != len(df):
+                            df.to_excel(writer, sheet_name='Dados_Completos', index=False)
+                    
+                    st.download_button(
+                        label="📈 Baixar Excel",
+                        data=buffer.getvalue(),
+                        file_name=f"relatorio_alagoas_{pd.Timestamp.now().strftime('%Y%m%d_%H%M')}.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        help="Download em formato Excel com múltiplas planilhas"
+                    )
+                except ImportError:
+                    st.error("Biblioteca openpyxl não disponível. Use o formato CSV.")
+                except Exception as e:
+                    st.error(f"Erro ao gerar Excel: {str(e)}")
+            else:
+                st.error("Nenhum dado disponível para exportar")
+        
+        with col_export3:
+            st.markdown("### Formato JSON")
+            if len(df_filtrado) > 0:
+                json_data = df_filtrado.to_json(orient='records', indent=2)
+                st.download_button(
+                    label="🔗 Baixar JSON",
+                    data=json_data,
+                    file_name=f"dados_alagoas_{pd.Timestamp.now().strftime('%Y%m%d_%H%M')}.json",
+                    mime="application/json",
+                    help="Download em formato JSON para APIs"
+                )
+            else:
+                st.error("Nenhum dado disponível para exportar")
+        
+        st.markdown("---")
+        
+        # Tabela completa expandida
+        st.markdown("## Visualização Completa dos Dados")
+        
+        tab_view1, tab_view2, tab_view3 = st.tabs(["Tabela Interativa", "Estatísticas Detalhadas", "Informações Técnicas"])
+        
+        with tab_view1:
+            if len(df_filtrado) > 0 and show_cols:
+                st.dataframe(
+                    df_filtrado[show_cols], 
+                    use_container_width=True,
+                    height=500
+                )
+            else:
+                st.info("Configure os filtros e colunas para visualizar os dados")
+        
+        with tab_view2:
+            if len(df_filtrado) > 0:
+                st.markdown("### Estatísticas Descritivas")
+                
+                # Identificar colunas numéricas
+                numeric_cols = df_filtrado.select_dtypes(include=[np.number]).columns.tolist()
+                
+                if numeric_cols:
+                    stats_df = df_filtrado[numeric_cols].describe()
+                    st.dataframe(stats_df, use_container_width=True)
+                else:
+                    st.warning("Nenhuma coluna numérica encontrada para estatísticas")
+                
+                # Análise de valores faltantes
+                st.markdown("### Análise de Dados Faltantes")
+                missing_data = df_filtrado.isnull().sum()
+                missing_df = pd.DataFrame({
+                    'Coluna': missing_data.index,
+                    'Valores Faltantes': missing_data.values,
+                    'Percentual': (missing_data.values / len(df_filtrado) * 100).round(2)
+                })
+                missing_df = missing_df[missing_df['Valores Faltantes'] > 0]
+                
+                if not missing_df.empty:
+                    st.dataframe(missing_df, use_container_width=True)
+                else:
+                    st.success("Nenhum valor faltante encontrado nos dados filtrados!")
+            else:
+                st.info("Aplique filtros para ver as estatísticas")
+        
+        with tab_view3:
+            st.markdown("### Informações do Dataset")
             
-            **Total de registros:** {formatar_numero_brasileiro(len(df))}
+            col_info1, col_info2 = st.columns(2)
             
-            **Colunas disponíveis:** {len(df.columns)}
+            with col_info1:
+                st.markdown(f"""
+                **Fonte dos dados:** CSV de Precificação - Municípios de Alagoas
+                
+                **Registros totais:** {formatar_numero_brasileiro(len(df))}
+                
+                **Registros filtrados:** {formatar_numero_brasileiro(len(df_filtrado))}
+                
+                **Colunas disponíveis:** {len(df.columns)}
+                
+                **Última atualização:** {pd.Timestamp.now().strftime('%d/%m/%Y às %H:%M')}
+                """)
             
-            **Última atualização:** {pd.Timestamp.now().strftime('%d/%m/%Y %H:%M')}
-            
-            **Estrutura dos dados:**
-            """)
-            
-            # Mostrar tipos de dados
-            info_df = pd.DataFrame({
-                'Coluna': df.columns,
-                'Tipo': df.dtypes.astype(str),
-                'Valores Únicos': [df[col].nunique() for col in df.columns],
-                'Nulos': [df[col].isnull().sum() for col in df.columns]
-            })
-            st.dataframe(info_df, use_container_width=True)
+            with col_info2:
+                st.markdown("### Estrutura dos Dados")
+                info_df = pd.DataFrame({
+                    'Coluna': df.columns,
+                    'Tipo': df.dtypes.astype(str),
+                    'Valores Únicos': [df[col].nunique() for col in df.columns],
+                    'Valores Nulos': [df[col].isnull().sum() for col in df.columns],
+                    'Completude (%)': [((len(df) - df[col].isnull().sum()) / len(df) * 100).round(1) for col in df.columns]
+                })
+                st.dataframe(info_df, use_container_width=True, height=300)
 
-    # Footer simplificado
+    # Footer com informações úteis
     st.markdown("---")
-    st.markdown("*💡 Dica: Use a aba 'Dados & Exportação' para visualizar e baixar os dados completos*")
+    st.markdown("""
+    <div style='text-align: center; color: #666; font-size: 0.9em;'>
+        <strong>Sistema de Análise de Precificação - Estado de Alagoas</strong><br>
+        💡 <em>Utilize as ferramentas de exportação para análises externas e relatórios oficiais</em>
+    </div>
+    """, unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
