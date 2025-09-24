@@ -3175,26 +3175,21 @@ def main():
                 # Mapa ocupando toda a largura da tela
                 st_folium(interactive_map, height=600, width='stretch')
                 
-                # Estatísticas do mapa
-                st.markdown("#### 📊 Estatísticas do Mapa")
+                # Legenda do mapa
+                st.markdown("#### � Legenda dos Marcadores")
                 col1, col2, col3 = st.columns(3)
                 
                 with col1:
-                    total_municipios = len(df_filtered)
-                    st.metric("Total de Municípios", total_municipios)
+                    st.markdown("🟢 **Valor Baixo**")
+                    st.caption("0-33% da faixa de valores")
                 
                 with col2:
-                    if 'Valor_Municipal_Area' in df_filtered.columns:
-                        # Converter para valores numéricos e calcular total em bilhões
-                        valores_clean = pd.to_numeric(df_filtered['Valor_Municipal_Area'], errors='coerce').fillna(0)
-                        valor_total_bi = valores_clean.sum() / 1_000_000_000
-                        st.metric("💰 Valor Total", f"R$ {valor_total_bi:.2f}B".replace('.', ','))
+                    st.markdown("🟠 **Valor Médio**")
+                    st.caption("33-66% da faixa de valores")
                 
                 with col3:
-                    if 'Populacao' in df_filtered.columns:
-                        pop_clean = corrigir_populacao(df_filtered['Populacao'])
-                        pop_total = int(pop_clean.sum())
-                        st.metric("👥 População Total", formatar_numero_brasileiro(pop_total))
+                    st.markdown("🔴 **Valor Alto**")
+                    st.caption("66-100% da faixa de valores")
                 
             except Exception as e:
                 st.error(f"❌ Erro ao carregar o mapa: {str(e)}")
