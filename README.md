@@ -17,10 +17,13 @@
 
 ## 🌟 Sobre o Projeto
 
-Este projeto apresenta um **dashboard completo e interativo** desenvolvido em Streamlit para análise dos dados de precificação dos 102 municípios de Alagoas. O sistema utiliza dados do INCRA baseados na **Instrução Normativa para Georreferenciamento** e oferece visualizações geográficas, análises estatísticas e relatórios profissionais.
+Este projeto apresenta um **dashboard completo e interativo** desenvolvido em Streamlit para análise de dados de precificação municipal. O sistema oferece visualizações geográficas, análises estatísticas e relatórios profissionais personalizados.
 
 ### 🎯 **Objetivo**
 Fornecer uma ferramenta visual e intuitiva para análise de precificação municipal, permitindo insights geográficos e estatísticos para tomada de decisões estratégicas.
+
+### 🛡️ **Privacidade dos Dados**
+⚠️ **IMPORTANTE**: Este repositório utiliza **dados fictícios** para demonstração. Os dados reais foram removidos por questões de **privacidade e segurança**. Para usar seus próprios dados, adicione-os na pasta `data/` (que está protegida pelo `.gitignore`).
 
 ---
 

@@ -60,16 +60,26 @@ Thumbs.db
 *.tmp
 *.temp
 
-# Data files (uncomment if you want to exclude data)
-# *.csv
-# *.xlsx
-# *.json
+# Data files - SENSITIVE DATA EXCLUDED
+data/
+*.csv
+*.xlsx
+*.json
+
+# Documents - INTERNAL DOCS EXCLUDED  
+docs/
+*.pdf
 
 # Sensitive files
 config.yaml
 secrets.toml
 .env.local
 .env.production
+dashboard_alias.txt
+
+# Logs and process files
+*.log
+*.pid
 
 # Cache
 .cache/
