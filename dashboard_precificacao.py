@@ -3175,22 +3175,6 @@ def main():
                 # Mapa ocupando toda a largura da tela
                 st_folium(interactive_map, height=600, width='stretch')
                 
-                # Legenda do mapa
-                st.markdown("#### � Legenda dos Marcadores")
-                col1, col2, col3 = st.columns(3)
-                
-                with col1:
-                    st.markdown("🟢 **Valor Baixo**")
-                    st.caption("0-33% da faixa de valores")
-                
-                with col2:
-                    st.markdown("🟠 **Valor Médio**")
-                    st.caption("33-66% da faixa de valores")
-                
-                with col3:
-                    st.markdown("🔴 **Valor Alto**")
-                    st.caption("66-100% da faixa de valores")
-                
             except Exception as e:
                 st.error(f"❌ Erro ao carregar o mapa: {str(e)}")
                 st.info("💡 Dica: Certifique-se de que os dados de localização estão disponíveis.")
