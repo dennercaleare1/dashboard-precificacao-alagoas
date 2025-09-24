@@ -3192,16 +3192,26 @@ def main():
                 st.plotly_chart(fig_ranking, width='stretch')
         
         with col2:
-            st.markdown("#### 📈 Estatísticas")
+            st.markdown("#### 📈 Informações do Ranking")
             if 'Valor_Municipal_Area' in df_filtered.columns:
                 valores_clean = df_filtered['Valor_Municipal_Area'].apply(clean_brazilian_number)
                 valores_valid = valores_clean.dropna()
                 
                 if not valores_valid.empty:
-                    st.metric("💰 Maior Valor", f"R$ {valores_valid.max()/1_000_000_000:.2f}B".replace('.', ','))
-                    st.metric("📊 Valor Médio", f"R$ {valores_valid.mean()/1_000_000_000:.2f}B".replace('.', ',')) 
-                    st.metric("📉 Menor Valor", f"R$ {valores_valid.min()/1_000_000:.2f}M".replace('.', ','))
-                    st.metric("🎯 Total Geral", f"R$ {valores_valid.sum()/1_000_000_000:.2f}B".replace('.', ','))
+                    st.metric("� Menor Valor", f"R$ {valores_valid.min()/1_000_000:.2f}M".replace('.', ','))
+                    
+                    # Calcular diferença entre maior e menor
+                    diferenca = valores_valid.max() - valores_valid.min()
+                    st.metric("📊 Amplitude", f"R$ {diferenca/1_000_000_000:.2f}B".replace('.', ','),
+                             help="Diferença entre o maior e menor valor")
+                    
+                    # Mostrar quantos municípios estão sendo exibidos
+                    st.metric("🎯 Municípios no Ranking", f"{len(valores_valid)}")
+                    
+                    # Desvio padrão para mostrar dispersão
+                    desvio = valores_valid.std()
+                    st.metric("📈 Desvio Padrão", f"R$ {desvio/1_000_000_000:.2f}B".replace('.', ','),
+                             help="Medida de dispersão dos valores")
                 else:
                     st.info("📊 Nenhum dado de valor disponível para os filtros aplicados")
         
