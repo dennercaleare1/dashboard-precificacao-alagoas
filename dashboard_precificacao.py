@@ -3081,46 +3081,6 @@ def main():
         
         st.markdown("---")
         
-        # Botão PDF
-        st.markdown("### 📄 Relatórios")
-        
-        # Criar um placeholder para dados filtrados
-        if 'dados_para_pdf' not in st.session_state:
-            st.session_state.dados_para_pdf = df
-            
-        if st.button("📄 Gerar PDF", help="Gerar Relatório PDF dos dados filtrados", type="primary"):
-            with st.spinner("Gerando PDF..."):
-                try:
-                    # Usar dados do session_state que serão atualizados pelos filtros
-                    dados_pdf = st.session_state.get('dados_para_pdf', df)
-                    pdf_buffer = generate_pdf_report(dados_pdf)
-                    
-                    # Gerar nome do arquivo com timestamp e info de filtros
-                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                    total_registros = len(dados_pdf)
-                    filename = f"relatorio_alagoas_{total_registros}municipios_{timestamp}.pdf"
-                    
-                    st.download_button(
-                        label=f"💾 Baixar PDF ({total_registros} municípios)",
-                        data=pdf_buffer,
-                        file_name=filename,
-                        mime="application/pdf",
-                        type="secondary",
-                        width='stretch'
-                    )
-                    st.success(f"✅ Relatório PDF gerado para {total_registros} municípios!")
-                except Exception as e:
-                    st.error(f"❌ Erro ao gerar PDF: {str(e)}")
-                    
-        # Info sobre o relatório
-        total_atual = len(st.session_state.get('dados_para_pdf', df))
-        if total_atual < len(df):
-            st.info(f"📊 Relatório incluirá {total_atual} de {len(df)} municípios (filtrados)")
-        else:
-            st.info(f"📊 Relatório incluirá todos os {total_atual} municípios")
-        
-        st.markdown("---")
-        
         # Botão limpar
         if st.button("🗑️ Limpar", type="secondary"):
             keys_to_clear = ['municipios_selecionados', 'busca_texto', 'pop_range', 'nota_range', 'valor_range', 'show_top_only']
@@ -3201,9 +3161,6 @@ def main():
     if df_filtered.empty:
         st.warning("⚠️ Nenhum município corresponde aos filtros aplicados. Tente ajustar os critérios.")
         df_filtered = df_original  # Usar dados originais se filtros resultarem em conjunto vazio
-    
-    # Atualizar dados filtrados no session_state para o PDF
-    st.session_state.dados_para_pdf = df_filtered
     
     # Usar dados filtrados para todas as visualizações
     df = df_filtered
