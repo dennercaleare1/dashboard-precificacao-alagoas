@@ -2967,22 +2967,25 @@ def main():
     
     # Sidebar
     with st.sidebar:
-        st.markdown("### Filtros")
+        st.markdown("### 🎛️ Painel de Filtros")
+        st.markdown("_Configure os filtros para personalizar sua análise_")
         
         # Seleção de municípios
         municipios_lista = sorted(df['Municipio'].unique()) if 'Municipio' in df.columns else []
         municipios_selecionados = st.multiselect(
             "🏘️ Municípios",
             options=municipios_lista,
-            placeholder="Todos",
-            key="municipios_selecionados"
+            placeholder="Todos os municípios",
+            key="municipios_selecionados",
+            help="Selecione municípios específicos para análise. Deixe vazio para incluir todos."
         )
         
         # Busca rápida
         busca_texto = st.text_input(
-            "🔍 Buscar",
-            placeholder="Nome do município...",
-            key="busca_texto"
+            "🔍 Busca Rápida",
+            placeholder="Digite o nome do município...",
+            key="busca_texto",
+            help="Digite parte do nome do município para filtrar rapidamente"
         )
         
         # População
@@ -3010,7 +3013,8 @@ def main():
                     value=(pop_min_k, pop_max_k),
                     step=1.0,
                     key="pop_range",
-                    format="%.0fK"
+                    format="%.0fK",
+                    help="Filtre municípios por faixa populacional. Use para encontrar cidades de tamanho específico."
                 )
                 # Converter de volta para valores absolutos
                 pop_range = (int(pop_range_k[0] * 1000), int(pop_range_k[1] * 1000))
@@ -3029,12 +3033,13 @@ def main():
                     nota_max = min(nota_min + 1.0, 10.0)  # Adicionar 1 ponto ou até 10
                 
                 nota_range = st.slider(
-                    "⭐ Nota",
+                    "⭐ Nota de Qualidade",
                     min_value=nota_min,
                     max_value=nota_max,
                     value=(nota_min, nota_max),
                     step=0.1,
-                    key="nota_range"
+                    key="nota_range",
+                    help="Filtre por nota de qualidade municipal. Notas mais altas indicam melhor infraestrutura e serviços."
                 )
             else:
                 st.info("Dados de nota não disponíveis")
@@ -3063,7 +3068,8 @@ def main():
                     value=(valor_min_bi, valor_max_bi),
                     step=0.1,
                     key="valor_range",
-                    format="R$ %.1fB"
+                    format="R$ %.1fB",
+                    help="Filtre municípios por faixa de valor municipal. Valores mais altos indicam maior potencial econômico."
                 )
                 # Converter de volta para valores absolutos
                 valor_range = (valor_range_bi[0] * 1_000_000_000, valor_range_bi[1] * 1_000_000_000)
@@ -3074,27 +3080,40 @@ def main():
         
         # Análise rápida
         show_top_only = st.selectbox(
-            "🎯 Análise",
+            "🎯 Análise Rápida",
             options=["Todos", "Top 10 Valor", "Top 10 Perímetro", "Top 5 Premium", "Baixo Valor"],
-            key="show_top_only"
+            key="show_top_only",
+            help="Selecione um conjunto pré-definido de municípios para análise rápida ou escolha 'Todos' para ver todos os dados."
         )
         
         st.markdown("---")
         
+        # Indicador de resultados filtrados
+        num_municipios = len(df)
+        st.info(f"📊 **{num_municipios}** municípios disponíveis")
+        
         # Botão limpar
-        if st.button("🗑️ Limpar", type="secondary"):
-            keys_to_clear = ['municipios_selecionados', 'busca_texto', 'pop_range', 'nota_range', 'valor_range', 'show_top_only']
-            for key in keys_to_clear:
-                if key in st.session_state:
-                    del st.session_state[key]
-            st.rerun()
-    # Aplica filtros
-    df_original = df.copy()  # Manter cópia original para estatísticas
-    
-    # Obter valores dos filtros do session_state
-    municipios_selecionados = st.session_state.get('municipios_selecionados', [])
-    busca_texto = st.session_state.get('busca_texto', "")
-    show_top_only = st.session_state.get('show_top_only', "Todos")
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("🗑️ Limpar Filtros", type="secondary", help="Remove todos os filtros aplicados"):
+                keys_to_clear = ['municipios_selecionados', 'busca_texto', 'pop_range', 'nota_range', 'valor_range', 'show_top_only']
+                for key in keys_to_clear:
+                    if key in st.session_state:
+                        del st.session_state[key]
+                st.rerun()
+        
+        with col2:
+            if st.button("🔄 Atualizar", type="primary", help="Recarrega os dados do dashboard"):
+                st.cache_data.clear()
+                st.rerun()
+    # Aplica filtros com indicador de carregamento
+    with st.spinner("🔄 Aplicando filtros..."):
+        df_original = df.copy()  # Manter cópia original para estatísticas
+        
+        # Obter valores dos filtros do session_state
+        municipios_selecionados = st.session_state.get('municipios_selecionados', [])
+        busca_texto = st.session_state.get('busca_texto', "")
+        show_top_only = st.session_state.get('show_top_only', "Todos")
     
     # Converter os valores dos sliders para usar na filtragem
     # População - converter de volta de milhares para valores absolutos
@@ -3137,23 +3156,23 @@ def main():
         else:
             valor_range_val = (0, 0)
     
-    df_filtered = apply_filters(
-        df, 
-        municipios_selecionados, 
-        busca_texto, 
-        pop_range_val, 
-        nota_range_val, 
-        valor_range_val, 
-        show_top_only
-    )
-    
-    # Verificar se há dados após filtros
-    if df_filtered.empty:
-        st.warning("⚠️ Nenhum município corresponde aos filtros aplicados. Tente ajustar os critérios.")
-        df_filtered = df_original  # Usar dados originais se filtros resultarem em conjunto vazio
-    
-    # Usar dados filtrados para todas as visualizações
-    df = df_filtered
+        df_filtered = apply_filters(
+            df, 
+            municipios_selecionados, 
+            busca_texto, 
+            pop_range_val, 
+            nota_range_val, 
+            valor_range_val, 
+            show_top_only
+        )
+        
+        # Verificar se há dados após filtros
+        if df_filtered.empty:
+            st.warning("⚠️ Nenhum município corresponde aos filtros aplicados. Tente ajustar os critérios.")
+            df_filtered = df_original  # Usar dados originais se filtros resultarem em conjunto vazio
+        
+        # Usar dados filtrados para todas as visualizações
+        df = df_filtered
     
     # Métricas de visão geral
     st.markdown("## 📈 Visão Geral")
@@ -3170,14 +3189,15 @@ def main():
         
         # Criar e exibir o mapa em tela cheia
         if 'Valor_Municipal_Area' in df_filtered.columns:
-            try:
-                interactive_map = create_interactive_map(df_filtered)
-                # Mapa ocupando toda a largura da tela
-                st_folium(interactive_map, height=600, width='stretch')
-                
-            except Exception as e:
-                st.error(f"❌ Erro ao carregar o mapa: {str(e)}")
-                st.info("💡 Dica: Certifique-se de que os dados de localização estão disponíveis.")
+            with st.spinner("🗺️ Carregando mapa interativo..."):
+                try:
+                    interactive_map = create_interactive_map(df_filtered)
+                    # Mapa ocupando toda a largura da tela
+                    st_folium(interactive_map, height=600, width='stretch')
+                    
+                except Exception as e:
+                    st.error(f"❌ Erro ao carregar o mapa: {str(e)}")
+                    st.info("💡 Dica: Certifique-se de que os dados de localização estão disponíveis.")
         else:
             st.warning("Dados de valor municipal não disponíveis para o mapa.")
 
@@ -3187,9 +3207,10 @@ def main():
         col1, col2 = st.columns([2, 1])
         
         with col1:
-            fig_ranking = create_value_ranking_chart(df_filtered)
-            if fig_ranking:
-                st.plotly_chart(fig_ranking, width='stretch')
+            with st.spinner("📊 Gerando gráfico de ranking..."):
+                fig_ranking = create_value_ranking_chart(df_filtered)
+                if fig_ranking:
+                    st.plotly_chart(fig_ranking, width='stretch')
         
         with col2:
             st.markdown("#### �� Resumo do Ranking")
