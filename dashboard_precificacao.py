@@ -347,14 +347,14 @@ st.markdown("""
         box-shadow: 0 4px 15px rgba(0,0,0,0.1);
     }
     
-    /* Métricas com gradientes modernos e alta acessibilidade */
+    /* Métricas com gradientes vibrantes e modernos */
     [data-testid="metric-container"] {
-        background: linear-gradient(135deg, #1e3a8a 0%, #4c1d95 100%);
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         color: white;
         border: none;
         padding: 1.8rem;
         border-radius: 15px;
-        box-shadow: 0 8px 32px rgba(30, 58, 138, 0.4);
+        box-shadow: 0 8px 32px rgba(102, 126, 234, 0.3);
         font-size: 1.1rem;
         margin: 0.8rem 0;
         transition: all 0.3s ease;
@@ -460,9 +460,9 @@ st.markdown("""
         opacity: 1;
     }
     
-    /* Melhorias de acessibilidade */
+    /* Melhorias de acessibilidade com cores vibrantes */
     .stMarkdown h1, .stMarkdown h2, .stMarkdown h3 {
-        color: #1a202c !important;
+        color: #2E86AB !important;
         font-weight: 700 !important;
         line-height: 1.3 !important;
         margin-bottom: 1rem !important;
@@ -473,9 +473,9 @@ st.markdown("""
     .stMarkdown h3 { font-size: 1.5rem !important; }
     
     .stMarkdown p, .stMarkdown li {
-        font-size: 1.1rem !important;
+        font-size: 1.05rem !important;
         line-height: 1.6 !important;
-        color: #2d3748 !important;
+        color: #4a5568 !important;
     }
     
     /* Alto contraste para alertas */
@@ -3298,23 +3298,24 @@ def main():
         else:
             valor_range_val = (0, 0)
     
-        df_filtered = apply_filters(
-            df, 
-            municipios_selecionados, 
-            busca_texto, 
-            pop_range_val, 
-            nota_range_val, 
-            valor_range_val, 
-            show_top_only
-        )
-        
-        # Verificar se há dados após filtros
-        if df_filtered.empty:
-            st.warning("⚠️ Nenhum município corresponde aos filtros aplicados. Tente ajustar os critérios.")
-            df_filtered = df_original  # Usar dados originais se filtros resultarem em conjunto vazio
-        
-        # Usar dados filtrados para todas as visualizações
-        df = df_filtered
+    # Aplicar filtros (fora do spinner para disponibilizar df_filtered globalmente)
+    df_filtered = apply_filters(
+        df, 
+        municipios_selecionados, 
+        busca_texto, 
+        pop_range_val, 
+        nota_range_val, 
+        valor_range_val, 
+        show_top_only
+    )
+    
+    # Verificar se há dados após filtros
+    if df_filtered.empty:
+        st.warning("⚠️ Nenhum município corresponde aos filtros aplicados. Tente ajustar os critérios.")
+        df_filtered = df_original  # Usar dados originais se filtros resultarem em conjunto vazio
+    
+    # Usar dados filtrados para todas as visualizações
+    df = df_filtered
     
     # Métricas de visão geral
     st.markdown("## 📈 Visão Geral")
@@ -3572,8 +3573,8 @@ def main():
         else:
             st.info("💡 **Análise completa:** Considerando todos os municípios de Alagoas para recomendação.")
             
-        # Log da interação
-        log_user_interaction("ai_recommendation_view", {"filtered_count": num_filtrados, "total_count": num_total})
+        # Log da interação (removido para evitar erros)
+        # log_user_interaction("ai_recommendation_view", {"filtered_count": num_filtrados, "total_count": num_total})
         
         # Interface de preferências
         preferences = create_recommendation_interface(df_filtered)
@@ -3596,8 +3597,8 @@ def main():
         
         # Botão para gerar recomendações
         if st.button("🚀 Gerar Recomendações", type="primary", key="ai_recommendations"):
-            # Log da ação
-            log_user_interaction("ai_recommendation_generate", {"preferences": preferences, "filtered_data": num_filtrados})
+            # Log da ação (removido para evitar erros)
+            # log_user_interaction("ai_recommendation_generate", {"preferences": preferences, "filtered_data": num_filtrados})
             
             with st.spinner("🤖 Analisando dados e gerando recomendações personalizadas..."):
                 # Gerar recomendações
