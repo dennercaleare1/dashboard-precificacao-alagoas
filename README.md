@@ -2,14 +2,19 @@
 
 <div align="center">
 
-![Streamlit](https://img.shields.io/badge/Streamlit-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white)
-![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)
-![Plotly](https://img.shields.io/badge/Plotly-239120?style=for-the-badge&logo=plotly&logoColor=white)
-![Folium](https://img.shields.io/badge/Folium-77B829?style=for-the-badge&logo=folium&logoColor=white)
+[![Python Version](https://img.shields.io/badge/Python-3.8%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
+[![Streamlit](https://img.shields.io/badge/Streamlit-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white)](https://streamlit.io/)
+[![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
+[![GitHub Stars](https://img.shields.io/github/stars/dennercaleare1/dashboard-precificacao-alagoas?style=for-the-badge&logo=github)](https://github.com/dennercaleare1/dashboard-precificacao-alagoas/stargazers)
 
-**Dashboard interativo para análise de dados de precificação dos municípios de Alagoas com mapa geográfico, visualizações avançadas e relatórios em PDF.**
+[![Plotly](https://img.shields.io/badge/Plotly-239120?style=flat-square&logo=plotly&logoColor=white)](https://plotly.com/)
+[![Folium](https://img.shields.io/badge/Folium-77B829?style=flat-square&logo=folium&logoColor=white)](https://python-visualization.github.io/folium/)
+[![Pandas](https://img.shields.io/badge/Pandas-150458?style=flat-square&logo=pandas&logoColor=white)](https://pandas.pydata.org/)
+[![ReportLab](https://img.shields.io/badge/ReportLab-FF6B35?style=flat-square)](https://www.reportlab.com/)
 
-[🚀 Demo](#como-executar) • [📊 Funcionalidades](#funcionalidades) • [🛠️ Instalação](#instalação) • [📖 Documentação](#documentação)
+**📊 Dashboard interativo para análise de dados de precificação dos municípios de Alagoas com mapa geográfico, visualizações avançadas e relatórios em PDF personalizados.**
+
+[🚀 Demo](#-como-executar) • [📊 Funcionalidades](#-funcionalidades) • [🛠️ Instalação](#-instalação) • [🤝 Contribuir](#-como-contribuir)
 
 </div>
 
@@ -21,6 +26,17 @@ Este projeto apresenta um **dashboard completo e interativo** desenvolvido em St
 
 ### 🎯 **Objetivo**
 Fornecer uma ferramenta visual e intuitiva para análise de precificação municipal, permitindo insights geográficos e estatísticos para tomada de decisões estratégicas.
+
+## 🚀 Demo
+
+> **🎬 Demonstração Visual:** *(Screenshots serão adicionados em breve)*
+
+### 📱 **Principais Telas do Dashboard:**
+- 🗺️ **Mapa Interativo** - Visualização geográfica completa dos 102 municípios
+- 📊 **Rankings** - Top municípios e análises comparativas
+- 📈 **Gráficos** - Distribuições e correlações avançadas
+- 🎨 **PDF Personalizado** - Relatórios profissionais customizáveis
+- 🔍 **Filtros Avançados** - Sistema de filtros inteligente e responsivo
 
 ### 🛡️ **Privacidade dos Dados**
 ⚠️ **IMPORTANTE**: Este repositório utiliza **dados fictícios** para demonstração. Os dados reais foram removidos por questões de **privacidade e segurança**. Para usar seus próprios dados, adicione-os na pasta `data/` (que está protegida pelo `.gitignore`).
@@ -282,6 +298,58 @@ O dashboard pode ser facilmente customizado:
 - Adicionar novas visualizações
 - Incluir filtros adicionais
 - Expandir métricas calculadas
+
+---
+
+## 🤝 Como Contribuir
+
+Contribuições são sempre bem-vindas! 🎉
+
+### 🚀 **Formas de Contribuir**
+- 🐛 **Reportar bugs** através das [Issues](https://github.com/dennercaleare1/dashboard-precificacao-alagoas/issues)
+- 💡 **Sugerir funcionalidades** usando nossos templates
+- 🔧 **Contribuir com código** via Pull Requests
+- 📝 **Melhorar documentação**
+- ⭐ **Dar uma estrela** no projeto
+
+### 📋 **Processo Simples**
+1. 🍴 Fork o repositório
+2. 🌿 Crie uma branch para sua feature (`git checkout -b feature/AmazingFeature`)
+3. ✅ Commit suas mudanças (`git commit -m '✨ Add some AmazingFeature'`)
+4. 📤 Push para a branch (`git push origin feature/AmazingFeature`)
+5. 🔄 Abra um Pull Request
+
+### 📚 **Documentação Completa**
+- 📖 [**Guia de Contribuição**](CONTRIBUTING.md) - Instruções detalhadas
+- 📅 [**Changelog**](CHANGELOG.md) - Histórico de versões
+- 🏷️ [**Issues Templates**](.github/ISSUE_TEMPLATE/) - Modelos padronizados
+
+---
+
+## 📄 Licença
+
+Este projeto está licenciado sob a Licença MIT - veja o arquivo [LICENSE](LICENSE) para detalhes.
+
+---
+
+## ⭐ Apoie o Projeto
+
+Se este projeto foi útil para você, considere:
+
+- ⭐ **Dar uma estrela** no GitHub
+- 🐛 **Reportar bugs** que encontrar
+- 💡 **Compartilhar ideias** para melhorias
+- 🤝 **Contribuir com código**
+
+---
+
+<div align="center">
+
+**Desenvolvido com ❤️ para análise de dados municipais**
+
+[![GitHub](https://img.shields.io/badge/GitHub-dennercaleare1-181717?style=for-the-badge&logo=github)](https://github.com/dennercaleare1)
+
+</div>
 
 ## 📝 Notas
 
