@@ -3192,7 +3192,7 @@ def main():
                 st.plotly_chart(fig_ranking, width='stretch')
         
         with col2:
-            st.markdown("#### 📈 Informações do Ranking")
+            st.markdown("#### �� Resumo do Ranking")
             if 'Valor_Municipal_Area' in df_filtered.columns:
                 valores_clean = df_filtered['Valor_Municipal_Area'].apply(clean_brazilian_number)
                 valores_valid = valores_clean.dropna()
@@ -3200,18 +3200,20 @@ def main():
                 if not valores_valid.empty:
                     st.metric("� Menor Valor", f"R$ {valores_valid.min()/1_000_000:.2f}M".replace('.', ','))
                     
-                    # Calcular diferença entre maior e menor
-                    diferenca = valores_valid.max() - valores_valid.min()
-                    st.metric("📊 Amplitude", f"R$ {diferenca/1_000_000_000:.2f}B".replace('.', ','),
-                             help="Diferença entre o maior e menor valor")
                     
                     # Mostrar quantos municípios estão sendo exibidos
-                    st.metric("🎯 Municípios no Ranking", f"{len(valores_valid)}")
+                    st.metric("🏘️ Municípios Mostrados", f"{len(valores_valid)}")
                     
-                    # Desvio padrão para mostrar dispersão
-                    desvio = valores_valid.std()
-                    st.metric("📈 Desvio Padrão", f"R$ {desvio/1_000_000_000:.2f}B".replace('.', ','),
-                             help="Medida de dispersão dos valores")
+                    # Calcular quantos estão acima da média
+                    media = valores_valid.mean()
+                    acima_media = len(valores_valid[valores_valid > media])
+                    st.metric("⬆️ Acima da Média", f"{acima_media}",
+                             help="Municípios com valor acima da média")
+                    
+                    # Mostrar posição do valor mediano
+                    mediana = valores_valid.median()
+                    st.metric("🎯 Valor Central", f"R$ {mediana/1_000_000_000:.2f}B".replace(".", ","),
+                             help="Valor que fica no meio do ranking")
                 else:
                     st.info("📊 Nenhum dado de valor disponível para os filtros aplicados")
         
