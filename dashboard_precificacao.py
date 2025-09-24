@@ -7,8 +7,10 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 import io
+import json
+import hashlib
 
 # Bibliotecas de visualização
 import plotly.express as px
@@ -205,6 +207,81 @@ def corrigir_colunas_brasileiras(df):
     return df
 
 # =============================================================================
+# SISTEMA DE ANALYTICS E LOGS
+# =============================================================================
+
+def log_user_interaction(action, details=None):
+    """
+    Registra interações do usuário para analytics simples
+    """
+    try:
+        # Criar hash anônimo do IP/sessão
+        session_id = hashlib.md5(str(st.session_state.get('session_id', 'anonymous')).encode()).hexdigest()[:8]
+        
+        log_entry = {
+            'timestamp': datetime.now().isoformat(),
+            'session_id': session_id,
+            'action': action,
+            'details': details or {}
+        }
+        
+        # Salvar em arquivo CSV (apenas se possível)
+        log_file = 'dashboard_analytics.csv'
+        
+        if os.path.exists(log_file):
+            df_logs = pd.read_csv(log_file)
+        else:
+            df_logs = pd.DataFrame()
+        
+        # Adicionar nova entrada
+        new_row = pd.DataFrame([{
+            'timestamp': log_entry['timestamp'],
+            'session_id': log_entry['session_id'],
+            'action': log_entry['action'],
+            'details': json.dumps(log_entry['details'])
+        }])
+        
+        df_logs = pd.concat([df_logs, new_row], ignore_index=True)
+        
+        # Manter apenas últimos 1000 registros
+        if len(df_logs) > 1000:
+            df_logs = df_logs.tail(1000)
+        
+        df_logs.to_csv(log_file, index=False)
+        
+    except Exception as e:
+        # Não quebrar a aplicação se houver erro no log
+        pass
+
+def get_analytics_summary():
+    """
+    Retorna resumo das analytics se disponível
+    """
+    try:
+        log_file = 'dashboard_analytics.csv'
+        if not os.path.exists(log_file):
+            return None
+            
+        df_logs = pd.read_csv(log_file)
+        df_logs['timestamp'] = pd.to_datetime(df_logs['timestamp'])
+        
+        # Filtrar últimos 7 dias
+        cutoff_date = datetime.now() - timedelta(days=7)
+        df_recent = df_logs[df_logs['timestamp'] >= cutoff_date]
+        
+        summary = {
+            'total_interactions': len(df_recent),
+            'unique_sessions': df_recent['session_id'].nunique(),
+            'top_actions': df_recent['action'].value_counts().head(5).to_dict(),
+            'daily_usage': df_recent.groupby(df_recent['timestamp'].dt.date).size().to_dict()
+        }
+        
+        return summary
+        
+    except Exception as e:
+        return None
+
+# =============================================================================
 # CONFIGURAÇÃO DA PÁGINA E ESTILOS
 # =============================================================================
 st.set_page_config(
@@ -270,14 +347,15 @@ st.markdown("""
         box-shadow: 0 4px 15px rgba(0,0,0,0.1);
     }
     
-    /* Métricas com gradientes modernos */
+    /* Métricas com gradientes modernos e alta acessibilidade */
     [data-testid="metric-container"] {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, #1e3a8a 0%, #4c1d95 100%);
         color: white;
         border: none;
-        padding: 1.5rem;
+        padding: 1.8rem;
         border-radius: 15px;
-        box-shadow: 0 8px 25px rgba(102, 126, 234, 0.25);
+        box-shadow: 0 8px 32px rgba(30, 58, 138, 0.4);
+        font-size: 1.1rem;
         margin: 0.8rem 0;
         transition: all 0.3s ease;
     }
@@ -380,6 +458,46 @@ st.markdown("""
     
     .pdf-button:hover {
         opacity: 1;
+    }
+    
+    /* Melhorias de acessibilidade */
+    .stMarkdown h1, .stMarkdown h2, .stMarkdown h3 {
+        color: #1a202c !important;
+        font-weight: 700 !important;
+        line-height: 1.3 !important;
+        margin-bottom: 1rem !important;
+    }
+    
+    .stMarkdown h1 { font-size: 2.5rem !important; }
+    .stMarkdown h2 { font-size: 2rem !important; }
+    .stMarkdown h3 { font-size: 1.5rem !important; }
+    
+    .stMarkdown p, .stMarkdown li {
+        font-size: 1.1rem !important;
+        line-height: 1.6 !important;
+        color: #2d3748 !important;
+    }
+    
+    /* Alto contraste para alertas */
+    .stAlert {
+        border-radius: 12px !important;
+        border-width: 2px !important;
+        font-size: 1.1rem !important;
+        padding: 1rem 1.5rem !important;
+        margin: 1rem 0 !important;
+    }
+    
+    /* Melhor legibilidade para inputs */
+    .stTextInput input, .stSelectbox select {
+        font-size: 1.1rem !important;
+        padding: 0.75rem !important;
+        border-radius: 8px !important;
+        border: 2px solid #e2e8f0 !important;
+    }
+    
+    .stTextInput input:focus, .stSelectbox select:focus {
+        border-color: #667eea !important;
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1) !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -920,11 +1038,12 @@ def create_value_ranking_chart(df):
         top_values,
         x='Valor_Bilhoes',
         y='Municipio',
-        title="Ranking dos 15 Principais Municípios por Valor de Área",
+        title="🏆 Ranking dos 15 Principais Municípios por Valor de Área",
         labels={'Valor_Bilhoes': 'Valor (R$ Bilhões)', 'Municipio': 'Município'},
         color='Valor_Bilhoes',
         color_continuous_scale='Viridis',
-        orientation='h'
+        orientation='h',
+        hover_data={'Valor_Area_Clean': ':,.0f'}  # Adiciona valor completo no hover
     )
     
     fig.update_layout(
@@ -933,7 +1052,18 @@ def create_value_ranking_chart(df):
         yaxis={'categoryorder': 'total ascending'},
         font=dict(size=12),
         title_font_size=16,
-        margin=dict(l=150, r=50, t=80, b=50)
+        margin=dict(l=150, r=50, t=80, b=50),
+        # Melhorar interatividade
+        hovermode='y unified',
+        dragmode='zoom'
+    )
+    
+    # Customizar hover
+    fig.update_traces(
+        hovertemplate='<b>%{y}</b><br>' +
+                      'Valor: R$ %{x:.2f} Bilhões<br>' +
+                      '<extra></extra>',
+        textposition='auto'
     )
     
     return fig
@@ -1272,12 +1402,24 @@ def create_interactive_map(df):
     # Centro do mapa (Alagoas)
     center_lat, center_lon = -9.5713, -36.7820
     
-    # Criar o mapa base
+    # Criar o mapa base com controles avançados
     m = folium.Map(
         location=[center_lat, center_lon],
         zoom_start=8,
         tiles='OpenStreetMap'
     )
+    
+    # Adicionar controles avançados
+    folium.plugins.Fullscreen().add_to(m)
+    folium.plugins.MeasureControl().add_to(m)
+    
+    # Adicionar camadas diferentes de mapa
+    folium.TileLayer('Stamen Terrain', name='Terrain').add_to(m)
+    folium.TileLayer('CartoDB positron', name='Light Map').add_to(m)
+    folium.TileLayer('OpenStreetMap', name='Street Map').add_to(m)
+    
+    # Controle de camadas
+    folium.LayerControl().add_to(m)
     
     # Calcular estatísticas para coloração
     if 'Valor_Municipal_Area' in df.columns:
@@ -3184,8 +3326,8 @@ def main():
     tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs(["Mapa Interativo", "Ranking de Valores", "Análise Comparativa", "Distribuição de Preços", "Consultor de Dados", "Recomendação AI", "📄 Gerar PDF Personalizado"])
     
     with tab1:
-        st.markdown("### Mapa Interativo dos Municípios")
-        st.markdown("Visualize os municípios de Alagoas com dados de precificação. As cores dos marcadores representam diferentes faixas de valores.")
+        st.markdown("### 🗺️ Mapa Interativo dos Municípios")
+        st.info("💡 **Como usar:** Clique nos marcadores para ver detalhes de cada município. As cores indicam diferentes faixas de valores - verde (baixo), laranja (médio), vermelho (alto).")
         
         # Criar e exibir o mapa em tela cheia
         if 'Valor_Municipal_Area' in df_filtered.columns:
@@ -3202,7 +3344,8 @@ def main():
             st.warning("Dados de valor municipal não disponíveis para o mapa.")
 
     with tab2:
-        st.markdown("### Ranking dos Municípios por Valor")
+        st.markdown("### 📊 Ranking dos Municípios por Valor")
+        st.info("💡 **Como usar:** Compare os municípios por valor. O gráfico mostra os maiores valores, e as métricas ao lado oferecem um resumo estatístico.")
         
         col1, col2 = st.columns([2, 1])
         
@@ -3254,11 +3397,13 @@ def main():
             st.dataframe(final_df, width='stretch')
 
     with tab3:
-        st.markdown("### Análise: Valor vs População")
+        st.markdown("### 📈 Análise: Valor vs População")
+        st.info("💡 **Como usar:** Analise a relação entre valor municipal e população. Identifique municípios com alta eficiência econômica (alto valor per capita).")
         
-        fig_comparison = create_value_per_population_chart(df_filtered)
-        if fig_comparison:
-            st.plotly_chart(fig_comparison, width='stretch')
+        with st.spinner("📊 Gerando análise comparativa..."):
+            fig_comparison = create_value_per_population_chart(df_filtered)
+            if fig_comparison:
+                st.plotly_chart(fig_comparison, width='stretch')
         
         # Análise de correlação específica
         st.markdown("### Correlação entre Valores")
@@ -3276,12 +3421,15 @@ def main():
                 
                 col1, col2, col3 = st.columns(3)
                 with col1:
-                    st.metric("Correlação", f"{correlation:.3f}")
+                    st.metric("📊 Correlação", f"{correlation:.3f}", 
+                             help="Correlação entre valor de área e perímetro. Valores próximos a 1 indicam forte correlação positiva.")
                 with col2:
-                    st.metric("Dados Válidos", f"{len(valid_data)}")
+                    st.metric("📋 Dados Válidos", f"{len(valid_data)}", 
+                             help="Número de municípios com dados completos para a análise de correlação.")
                 with col3:
                     ratio_medio = (valid_data['Area'] / valid_data['Perimetro']).mean()
-                    st.metric("Ratio Médio (Área/Perímetro)", f"{ratio_medio:.2f}".replace('.', ','))
+                    st.metric("⚖️ Proporção Área/Perímetro", f"{ratio_medio:.2f}".replace('.', ','),
+                             help="Proporção média entre valor por área e perímetro. Indica eficiência territorial.")
     
     with tab4:
         st.markdown("# � Distribuição de Preços")
@@ -3414,13 +3562,43 @@ def main():
     # Tab 6: Recomendação AI
     with tab6:
         st.markdown("### 🤖 Sistema de Recomendação Inteligente")
-        st.markdown("Nosso algoritmo de IA analisa seus critérios e recomenda os melhores municípios para seu perfil de investimento.")
+        
+        # Análise contextual dos filtros aplicados
+        num_filtrados = len(df_filtered)
+        num_total = len(df_original)
+        
+        if num_filtrados < num_total:
+            st.info(f"💡 **Análise baseada nos seus filtros:** {num_filtrados} de {num_total} municípios selecionados. A IA considerará apenas os municípios que atendem aos seus critérios de filtro.")
+        else:
+            st.info("💡 **Análise completa:** Considerando todos os municípios de Alagoas para recomendação.")
+            
+        # Log da interação
+        log_user_interaction("ai_recommendation_view", {"filtered_count": num_filtrados, "total_count": num_total})
         
         # Interface de preferências
         preferences = create_recommendation_interface(df_filtered)
         
+        # Sugestões automáticas baseadas nos filtros
+        if num_filtrados > 0:
+            st.markdown("#### 💡 Sugestões Baseadas nos Seus Filtros:")
+            
+            # Analisar padrões dos dados filtrados
+            if 'Valor_Municipal_Area' in df_filtered.columns:
+                valores = pd.to_numeric(df_filtered['Valor_Municipal_Area'], errors='coerce')
+                valor_medio = valores.mean()
+                
+                if valor_medio > 1_000_000_000:  # > 1 bilhão
+                    st.success("🎯 **Perfil Premium Detectado:** Seus filtros indicam interesse em municípios de alto valor. Recomendamos focar em infraestrutura e ROI.")
+                elif valor_medio > 100_000_000:  # > 100 milhões
+                    st.info("⚖️ **Perfil Equilibrado:** Balanceie entre valor e potencial de crescimento.")
+                else:
+                    st.warning("🚀 **Perfil Oportunidade:** Considere municípios emergentes com alto potencial de valorização.")
+        
         # Botão para gerar recomendações
         if st.button("🚀 Gerar Recomendações", type="primary", key="ai_recommendations"):
+            # Log da ação
+            log_user_interaction("ai_recommendation_generate", {"preferences": preferences, "filtered_data": num_filtrados})
+            
             with st.spinner("🤖 Analisando dados e gerando recomendações personalizadas..."):
                 # Gerar recomendações
                 recommendations = get_smart_recommendations(df_filtered, preferences, top_n=5)
