@@ -3137,16 +3137,6 @@ def main():
         else:
             valor_range_val = (0, 0)
     
-    # Debug dos valores dos filtros
-    if st.sidebar.checkbox("🔧 Debug Filtros", value=False):
-        st.sidebar.write("**Valores dos Filtros:**")
-        st.sidebar.write(f"População: {pop_range_val}")
-        st.sidebar.write(f"Nota: {nota_range_val}")
-        st.sidebar.write(f"Valor: {valor_range_val}")
-        if 'Valor_Municipal_Area' in df.columns:
-            valor_sample = df['Valor_Municipal_Area'].head(3).tolist()
-            st.sidebar.write(f"Sample valores: {valor_sample}")
-    
     df_filtered = apply_filters(
         df, 
         municipios_selecionados, 
