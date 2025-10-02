@@ -1532,48 +1532,86 @@ def create_notes_distribution(df):
 # MAPEAMENTO E GEOLOCALIZAÇÃO
 # =============================================================================
 
-def baixar_shapefile_ibge():
-    """Baixa o shapefile dos municípios do IBGE"""
-    import requests
+def baixar_shapefile_brasil():
+    """Carrega shapefile leve dos municípios do Brasil (3.7MB)"""
     import os
     
     if not GEOPANDAS_AVAILABLE:
-        st.error("⚠️ GeoPandas não disponível - funcionalidade de shapefile desabilitada")
+        st.warning("⚠️ GeoPandas não disponível - usando mapa simplificado")
         return None
     
-    # URL do shapefile dos municípios do IBGE
-    url = "https://geoftp.ibge.gov.br/organizacao_do_territorio/malhas_territoriais/malhas_municipais/municipio_2022/Brasil/BR/BR_Municipios_2022.zip"
+    import geopandas as gpd
     
-    # Diretório para salvar os dados
-    data_dir = "dados/shapefiles"
-    os.makedirs(data_dir, exist_ok=True)
+    # Usar shapefile leve local (já otimizado)
+    shapefile_path = 'dados/geo/municipios_brasil_light.shp'
     
-    zip_path = os.path.join(data_dir, "municipios_brasil_2022.zip")
+    if os.path.exists(shapefile_path):
+        try:
+            gdf = gpd.read_file(shapefile_path)
+            st.success(f"✅ Mapa carregado: {len(gdf)} municípios do Brasil")
+            return gdf
+        except Exception as e:
+            st.error(f"❌ Erro ao carregar shapefile: {e}")
+            return None
+    else:
+        st.error("❌ Shapefile não encontrado. Execute o script 'create_lightweight_shapefile.py' primeiro.")
+        return None
     
     # Baixar apenas se não existir
     if not os.path.exists(zip_path):
-        st.info("🌐 Baixando dados geográficos do IBGE (primeira vez)...")
+        st.info("🌐 Baixando dados geográficos do Brasil (primeira vez - pode demorar)...")
         try:
-            response = requests.get(url, stream=True)
+            response = requests.get(url, stream=True, timeout=300)
             response.raise_for_status()
             
             with open(zip_path, 'wb') as f:
+                total_size = int(response.headers.get('content-length', 0))
+                downloaded = 0
+                
+                progress_bar = st.progress(0)
+                status_text = st.empty()
+                
                 for chunk in response.iter_content(chunk_size=8192):
                     f.write(chunk)
-            st.success("✅ Dados geográficos baixados com sucesso!")
+                    downloaded += len(chunk)
+                    if total_size > 0:
+                        progress = downloaded / total_size
+                        progress_bar.progress(progress)
+                        status_text.text(f"Baixando: {downloaded/1024/1024:.1f}MB / {total_size/1024/1024:.1f}MB")
+                
+                progress_bar.empty()
+                status_text.empty()
+            
+            st.success("✅ Dados geográficos do Brasil baixados!")
         except Exception as e:
-            st.error(f"❌ Erro ao baixar shapefile: {e}")
+            st.warning(f"⚠️ Erro ao baixar shapefile: {e}")
             return None
     
     try:
-        # Carregar shapefile e filtrar apenas Alagoas
+        st.info("🔄 Processando dados geográficos (simplificando para reduzir tamanho)...")
+        
+        # Carregar shapefile do Brasil
         gdf = gpd.read_file(f"zip://{zip_path}")
-        gdf_al = gdf[gdf['SIGLA_UF'] == 'AL'].copy()
+        
+        # Simplificar geometrias para reduzir tamanho (tolerância de ~1km)
+        gdf_simplified = gdf.copy()
+        gdf_simplified['geometry'] = gdf_simplified['geometry'].simplify(tolerance=0.01)
+        
+        # Manter apenas colunas essenciais
+        colunas_essenciais = ['NM_MUN', 'SIGLA_UF', 'geometry']
+        colunas_existentes = [col for col in colunas_essenciais if col in gdf_simplified.columns]
+        gdf_simplified = gdf_simplified[colunas_existentes]
         
         # Garantir que a coluna de nome está normalizada
-        gdf_al['NM_MUN'] = gdf_al['NM_MUN'].str.title()
+        if 'NM_MUN' in gdf_simplified.columns:
+            gdf_simplified['NM_MUN'] = gdf_simplified['NM_MUN'].str.title()
         
-        return gdf_al
+        # Salvar versão simplificada para próximas execuções
+        gdf_simplified.to_file(geojson_path, driver='GeoJSON')
+        st.success("✅ Dados processados e otimizados!")
+        
+        return gdf_simplified
+        
     except Exception as e:
         st.error(f"❌ Erro ao carregar shapefile: {e}")
         return None
@@ -1614,8 +1652,8 @@ def create_interactive_map(df, df_full=None):
         return create_interactive_map_fallback(df, df_full)
     
     try:
-        # Baixar/carregar shapefile do IBGE
-        gdf = baixar_shapefile_ibge()
+        # Baixar/carregar shapefile do Brasil (otimizado)
+        gdf = baixar_shapefile_brasil()
         if gdf is None:
             return create_interactive_map_fallback(df, df_full)  # Função de fallback com coordenadas
         
