@@ -1,0 +1,17 @@
+# Dashboard de Precificação - Dependências Principais
+streamlit>=1.28.0
+pandas>=2.0.0
+numpy>=1.24.0
+
+# Visualizações e Gráficos
+plotly>=5.15.0
+folium>=0.15.0
+streamlit-folium>=0.15.0
+matplotlib>=3.7.0
+seaborn>=0.12.0
+
+# Geração de PDF/Relatórios
+reportlab>=4.0.0
+
+# Suporte para exportação de gráficos
+kaleido>=0.2.1

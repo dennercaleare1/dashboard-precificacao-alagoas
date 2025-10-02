@@ -1,0 +1,97 @@
+# Python
+__pycache__/
+# Virtual environment
+.venv/
+venv/
+env/
+
+# Backup files
+*_backup.py
+*_temp.py
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environment
+.venv/
+venv/
+ENV/
+env/
+.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# PyCharm
+.idea/
+
+# macOS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Streamlit
+.streamlit/
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+
+# Data files - SENSITIVE DATA EXCLUDED
+data/
+*.csv
+*.xlsx
+*.json
+
+# Documents - INTERNAL DOCS EXCLUDED  
+docs/
+*.pdf
+
+# Sensitive files
+config.yaml
+secrets.toml
+.env.local
+.env.production
+dashboard_alias.txt
+
+# Logs and process files
+*.log
+*.pid
+
+# Cache
+.cache/
+
+# Dados sensíveis/privados
+dados/
+*.csv
