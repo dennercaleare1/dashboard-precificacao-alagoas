@@ -10,6 +10,9 @@ streamlit-folium>=0.15.0
 matplotlib>=3.7.0
 seaborn>=0.12.0
 
+# Bibliotecas geoespaciais
+geopandas>=0.13.0
+
 # Geração de PDF/Relatórios
 reportlab>=4.0.0
 

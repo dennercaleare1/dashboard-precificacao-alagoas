@@ -24,7 +24,13 @@ import matplotlib
 matplotlib.use('Agg')  # Backend não-interativo para PDFs
 
 # Bibliotecas geoespaciais
-import geopandas as gpd
+try:
+    import geopandas as gpd
+    GEOPANDAS_AVAILABLE = True
+except ImportError:
+    GEOPANDAS_AVAILABLE = False
+    st.warning("⚠️ GeoPandas não disponível - algumas funcionalidades de mapa podem estar limitadas")
+
 import requests
 
 # Bibliotecas para geração de PDF
@@ -1529,8 +1535,11 @@ def create_notes_distribution(df):
 def baixar_shapefile_ibge():
     """Baixa o shapefile dos municípios do IBGE"""
     import requests
-    import geopandas as gpd
     import os
+    
+    if not GEOPANDAS_AVAILABLE:
+        st.error("⚠️ GeoPandas não disponível - funcionalidade de shapefile desabilitada")
+        return None
     
     # URL do shapefile dos municípios do IBGE
     url = "https://geoftp.ibge.gov.br/organizacao_do_territorio/malhas_territoriais/malhas_municipais/municipio_2022/Brasil/BR/BR_Municipios_2022.zip"
@@ -1599,6 +1608,10 @@ def format_tooltip_value(value, is_currency=True, is_area=False):
 
 def create_interactive_map(df, df_full=None):
     """Cria um mapa coroplético dos municípios de Alagoas usando shapefile do IBGE"""
+    
+    # Se geopandas não está disponível, usa fallback diretamente
+    if not GEOPANDAS_AVAILABLE:
+        return create_interactive_map_fallback(df, df_full)
     
     try:
         # Baixar/carregar shapefile do IBGE
