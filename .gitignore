@@ -92,6 +92,4 @@ dashboard_alias.txt
 # Cache
 .cache/
 
-# Dados sensíveis/privados
-dados/
-*.csv
+# Nota: dados/ incluído no repositório para funcionamento do dashboard
