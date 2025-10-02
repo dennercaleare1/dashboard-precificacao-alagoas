@@ -968,6 +968,31 @@ def load_data():
         
         if not csv_file:
             st.error("Nenhum arquivo CSV encontrado!")
+            st.error("❌ Não foi possível carregar os dados. Verifique se o arquivo CSV está no diretório correto.")
+            
+            # DEBUG INFO para Streamlit Cloud
+            st.write("🔍 **DEBUG INFO:**")
+            st.write(f"📁 Diretório atual: {os.getcwd()}")
+            st.write("📂 Conteúdo do diretório:")
+            try:
+                files = os.listdir('.')
+                for f in files:
+                    st.write(f"   - {f}")
+            except Exception as e:
+                st.write(f"Erro ao listar diretório: {e}")
+                
+            st.write("📂 Verificando pasta 'dados':")
+            if os.path.exists('dados'):
+                st.write("   ✅ Pasta 'dados' existe")
+                try:
+                    dados_files = os.listdir('dados')
+                    for f in dados_files:
+                        st.write(f"     - {f}")
+                except Exception as e:
+                    st.write(f"Erro ao listar pasta dados: {e}")
+            else:
+                st.write("   ❌ Pasta 'dados' não encontrada")
+            
             return pd.DataFrame()
         
         # Carrega o CSV como string para preservar formatação brasileira
