@@ -1543,12 +1543,11 @@ def baixar_shapefile_brasil():
     import geopandas as gpd
     
     # Usar shapefile leve local (já otimizado)
-    shapefile_path = 'dados/geo/municipios_brasil_light.shp'
+    shapefile_path = 'dados/geo/municipios_alagoas_only.shp'
     
     if os.path.exists(shapefile_path):
         try:
             gdf = gpd.read_file(shapefile_path)
-            st.success(f"✅ Mapa carregado: {len(gdf)} municípios do Brasil")
             return gdf
         except Exception as e:
             st.error(f"❌ Erro ao carregar shapefile: {e}")
@@ -1604,7 +1603,7 @@ def baixar_shapefile_brasil():
         
         # Garantir que a coluna de nome está normalizada
         if 'NM_MUN' in gdf_simplified.columns:
-            gdf_simplified['NM_MUN'] = gdf_simplified['NM_MUN'].str.title()
+            gdf_simplified['NM_MUN'] = gdf_simplified['NM_MUN'].apply(normalizar_municipio_para_exibicao)
         
         # Salvar versão simplificada para próximas execuções
         gdf_simplified.to_file(geojson_path, driver='GeoJSON')
@@ -1644,6 +1643,39 @@ def format_tooltip_value(value, is_currency=True, is_area=False):
     except:
         return "N/A"
 
+def normalizar_municipio_para_matching(nome):
+    """Normaliza nomes de municípios para matching (comparação)"""
+    if pd.isna(nome):
+        return nome
+    
+    # Converter para string e minúsculo
+    nome_limpo = str(nome).lower()
+    
+    # Remover apóstrofes e caracteres especiais
+    caracteres_para_remover = ["'", "'", "`", "´", "^", "~"]
+    for char in caracteres_para_remover:
+        nome_limpo = nome_limpo.replace(char, "")
+    
+    # Remover espaços extras
+    nome_limpo = " ".join(nome_limpo.split())
+    
+    return nome_limpo
+
+def normalizar_municipio_para_exibicao(nome):
+    """Normaliza nomes de municípios para exibição (mantém formatação)"""
+    if pd.isna(nome):
+        return nome
+    
+    # Converter para string e fazer title case
+    nome_normalizado = str(nome).title()
+    
+    # Corrigir preposições que devem ficar em minúsculo
+    preposicoes = ['Do', 'Da', 'De', 'Dos', 'Das', 'E']
+    for prep in preposicoes:
+        nome_normalizado = nome_normalizado.replace(f' {prep} ', f' {prep.lower()} ')
+    
+    return nome_normalizado
+
 def create_interactive_map(df, df_full=None):
     """Cria um mapa coroplético dos municípios de Alagoas usando shapefile do IBGE"""
     
@@ -1665,15 +1697,94 @@ def create_interactive_map(df, df_full=None):
         
         # Criar DataFrame para merge
         df_merge = df.copy()
-        df_merge['municipio_normalizado'] = df_merge[col_municipio].str.title()
+        df_merge['municipio_normalizado'] = df_merge[col_municipio].apply(normalizar_municipio_para_matching)
         
-        # Fazer merge dos dados com geometrias
-        gdf_merged = gdf.merge(
-            df_merge, 
-            left_on='NM_MUN', 
-            right_on='municipio_normalizado', 
-            how='left'
-        )
+        # Normalizar também o shapefile para matching
+        gdf['municipio_normalizado'] = gdf['NM_MUN'].apply(normalizar_municipio_para_matching)
+        
+        # Verificar se pode usar código IBGE (CD_MUN) para matching preciso
+        has_codigo_ibge = 'CD_MUN' in df_merge.columns and 'CD_MUN' in gdf.columns
+        
+        if has_codigo_ibge:
+            st.info("🎯 Usando matching por CÓDIGO IBGE (CD_MUN) - 100% preciso, sem homônimos!")
+            
+            # CORREÇÃO: Garantir que ambos os CD_MUN sejam do mesmo tipo (string)
+            gdf['CD_MUN'] = gdf['CD_MUN'].astype(str)
+            df_merge['CD_MUN'] = df_merge['CD_MUN'].astype(str)
+            
+            # Fazer merge por código IBGE (método mais confiável)
+            gdf_merged = gdf.merge(
+                df_merge, 
+                left_on='CD_MUN', 
+                right_on='CD_MUN', 
+                how='left'  # LEFT JOIN - mostra TODOS os municípios do shapefile
+            )
+        else:
+            # Fallback: verificar se CSV tem coluna UF para matching nome+UF
+            has_uf_column = any(col in df_merge.columns for col in ['SIGLA_UF', 'UF', 'uf', 'sigla_uf'])
+            
+            if has_uf_column:
+                # Usar NOME + UF para evitar homônimos
+                uf_col = next((col for col in ['SIGLA_UF', 'UF', 'uf', 'sigla_uf'] if col in df_merge.columns), None)
+                
+                # Verificar se o shapefile também tem coluna UF
+                gdf_uf_col = None
+                for col in ['SIGLA_UF', 'UF', 'uf', 'sigla_uf']:
+                    if col in gdf.columns:
+                        gdf_uf_col = col
+                        break
+                
+                if gdf_uf_col:
+                    st.info(f"🎯 Usando matching NOME + UF (CSV: {uf_col}, Shapefile: {gdf_uf_col}) para evitar homônimos")
+                    
+                    # Criar chaves compostas para merge
+                    gdf['chave_merge'] = gdf['NM_MUN'] + '_' + gdf[gdf_uf_col]
+                    df_merge['chave_merge'] = df_merge['municipio_normalizado'] + '_' + df_merge[uf_col]
+                    
+                    # Fazer merge com chave composta (nome + UF)
+                    gdf_merged = gdf.merge(
+                        df_merge, 
+                        left_on='chave_merge', 
+                        right_on='chave_merge', 
+                        how='left'  # LEFT JOIN - mostra TODOS os municípios do shapefile
+                    )
+                else:
+                    # Fallback final: merge apenas por nome (método antigo)
+                    gdf_merged = gdf.merge(
+                        df_merge, 
+                        left_on='municipio_normalizado', 
+                        right_on='municipio_normalizado', 
+                        how='left'  # LEFT JOIN - mostra TODOS os municípios do shapefile
+                    )
+            else:
+                # Fallback final: merge apenas por nome (método antigo)
+                st.warning("⚠️ Coluna UF não encontrada - usando apenas nome do município (pode gerar matches incorretos)")
+                gdf_merged = gdf.merge(
+                    df_merge, 
+                    left_on='municipio_normalizado', 
+                    right_on='municipio_normalizado', 
+                    how='left'  # LEFT JOIN - mostra TODOS os municípios do shapefile
+                )
+        
+        # Shapefile já contém apenas Alagoas - sem necessidade de filtro adicional
+        # Matching concluído - usando shapefile apenas de Alagoas
+        if False:  # Desabilitar debug desnecessário
+            municipios_fora_al = gdf_merged[gdf_merged['SIGLA_UF'] != 'AL']
+            if len(municipios_fora_al) > 0:
+                st.warning(f"⚠️ ATENÇÃO: {len(municipios_fora_al)} municípios fora de Alagoas encontrados:")
+                with st.expander("🔍 Ver municípios suspeitos"):
+                    for _, row in municipios_fora_al.iterrows():
+                        st.write(f"• **{row['NM_MUN']}** - UF: {row.get('SIGLA_UF', 'N/A')} - Dados: {row.get('municipio_normalizado', 'N/A')}")
+                        
+                if has_uf_column:
+                    st.error("� **ERRO GRAVE**: Mesmo usando matching NOME+UF, ainda há municípios fora de AL!")
+                else:
+                    st.info("💡 Matching por nome apenas - considere adicionar coluna UF aos dados para maior precisão")
+            else:
+                if has_uf_column:
+                    st.success("✅ **SUCESSO**: Matching NOME+UF funcionou - todos os municípios são de Alagoas!")
+                else:
+                    st.info("✅ Todos os matches são de Alagoas (matching por nome apenas)")
         
         # Preparar campos formatados para o tooltip
         gdf_merged['tooltip_municipio'] = gdf_merged['NM_MUN'].fillna('N/A')
@@ -1812,7 +1923,14 @@ def create_interactive_map(df, df_full=None):
                         padding: 8px;
                         font-family: Arial, sans-serif;
                         font-size: 12px;
-                        max-width: 300px;
+                        max-width: 280px;
+                        min-width: 200px;
+                        word-wrap: break-word;
+                        word-break: break-word;
+                        white-space: normal;
+                        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+                        position: relative;
+                        z-index: 1000;
                         """
                     )
                 ).add_to(m)
@@ -1858,7 +1976,14 @@ def create_interactive_map(df, df_full=None):
                         padding: 8px;
                         font-family: Arial, sans-serif;
                         font-size: 12px;
-                        max-width: 300px;
+                        max-width: 280px;
+                        min-width: 200px;
+                        word-wrap: break-word;
+                        word-break: break-word;
+                        white-space: normal;
+                        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+                        position: relative;
+                        z-index: 1000;
                         """
                     )
                 ).add_to(m)
@@ -2152,10 +2277,19 @@ def create_interactive_map_fallback(df, df_full=None, show_filtered_only=False):
                 
             # Criar texto do popup com informação de filtro
             status_text = "⭐ <b>SELECIONADO</b>" if is_filtered else "⚪ Não selecionado"
+            
+            # Garantir que valor é numérico para formatação
+            valor_formatado = "R$ 0"
+            try:
+                if pd.notna(valor) and valor != 0:
+                    valor_formatado = formatar_valor_grande(float(valor))
+            except:
+                valor_formatado = "R$ 0"
+                
             popup_text = f"""
             <b>{municipio}</b><br>
             <i>{status_text}</i><br><br>
-            Valor (Área): {formatar_valor_grande(valor)}<br>
+            Valor (Área): {valor_formatado}<br>
             👥 População: {formatar_numero_grande(populacao_int)}<br>
             """
             
@@ -2173,7 +2307,7 @@ def create_interactive_map_fallback(df, df_full=None, show_filtered_only=False):
             folium.Marker(
                 location=coords,
                 popup=folium.Popup(popup_text, max_width=300),
-                tooltip=f"{municipio} - {formatar_valor_grande(valor)} ({tooltip_status})",
+                tooltip=f"{municipio} - {valor_formatado} ({tooltip_status})",
                 icon=folium.Icon(
                     color=color,
                     icon=icon_name,
@@ -2200,10 +2334,17 @@ def create_interactive_map_fallback(df, df_full=None, show_filtered_only=False):
                 opacity = 0.4
                 fillOpacity = 0.1
             
+            # Garantir que radius é numérico para formatação
+            try:
+                radius_km = float(radius) / 1000
+                area_texto = f"{radius_km:.1f}km"
+            except:
+                area_texto = "N/A"
+                
             folium.Circle(
                 location=coords,
                 radius=radius,
-                popup=f"{municipio}<br>Área aprox.: {radius/1000:.1f}km<br><i>{status_text}</i>",
+                popup=f"{municipio}<br>Área aprox.: {area_texto}<br><i>{status_text}</i>",
                 color=circle_color,
                 weight=weight,
                 opacity=opacity,
@@ -4132,22 +4273,20 @@ def main():
 
         
         # Criar e exibir o mapa em tela cheia
-        if 'Valor_Municipal_Area' in df_filtered.columns and len(df_filtered) > 0:
-            with st.spinner("Carregando mapa interativo..."):
-                try:
-                    # Criar o mapa com destaque para municípios filtrados
-                    # Sempre passar df_original para comparação
-                    interactive_map = create_interactive_map(df_filtered, df_original)
-                    # Mapa ocupando toda a largura da tela
-                    st_folium(interactive_map, height=600, width='stretch')
-                    
-                except Exception as e:
-                    st.error(f"❌ Erro ao carregar o mapa: {str(e)}")
-                    st.info("Dica: Certifique-se de que os dados de localização estão disponíveis.")
-        elif len(df_filtered) == 0:
+        # SEMPRE MOSTRAR TODOS OS MUNICÍPIOS, independente de filtros
+        with st.spinner("Carregando mapa interativo..."):
+            try:
+                # Usar df_original (todos os municípios) para o mapa, destacando os filtrados
+                interactive_map = create_interactive_map(df_original, df_filtered)
+                # Mapa ocupando toda a largura da tela
+                st_folium(interactive_map, height=600, width='stretch')
+                
+            except Exception as e:
+                st.error(f"❌ Erro ao carregar o mapa: {str(e)}")
+                st.info("Dica: Certifique-se de que os dados de localização estão disponíveis.")
+        
+        if len(df_filtered) == 0:
             st.warning("⚠️ Nenhum município encontrado com os filtros aplicados. Ajuste os filtros para visualizar o mapa.")
-        else:
-            st.warning("Dados de valor municipal não disponíveis para o mapa.")
 
     with tab2:
         st.markdown("<h3 style='text-align: center;'>Ranking dos Municípios por Valor</h3>", unsafe_allow_html=True)
