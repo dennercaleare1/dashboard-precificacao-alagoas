@@ -23,13 +23,13 @@ import matplotlib.pyplot as plt
 import matplotlib
 matplotlib.use('Agg')  # Backend não-interativo para PDFs
 
-# Bibliotecas geoespaciais
+# Bibliotecas geoespaciais (importação condicional)
 try:
     import geopandas as gpd
     GEOPANDAS_AVAILABLE = True
 except ImportError:
     GEOPANDAS_AVAILABLE = False
-    st.warning("⚠️ GeoPandas não disponível - algumas funcionalidades de mapa podem estar limitadas")
+    # Aviso será mostrado na interface quando necessário
 
 import requests
 
