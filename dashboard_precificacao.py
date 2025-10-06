@@ -1540,8 +1540,6 @@ def baixar_shapefile_brasil():
         st.warning("⚠️ GeoPandas não disponível - usando mapa simplificado")
         return None
     
-    import geopandas as gpd
-    
     # Usar shapefile leve local (já otimizado)
     shapefile_path = 'dados/geo/municipios_alagoas_only.shp'
     
