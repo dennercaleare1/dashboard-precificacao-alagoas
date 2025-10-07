@@ -23,21 +23,8 @@ import matplotlib.pyplot as plt
 import matplotlib
 matplotlib.use('Agg')  # Backend não-interativo para PDFs
 
-# GeoPandas será importado sob demanda para evitar erros no Streamlit Cloud
-GEOPANDAS_AVAILABLE = False
-gpd = None
-
-def import_geopandas():
-    """Importa GeoPandas sob demanda"""
-    global gpd, GEOPANDAS_AVAILABLE
-    if not GEOPANDAS_AVAILABLE:
-        try:
-            import geopandas as gpd_module
-            gpd = gpd_module
-            GEOPANDAS_AVAILABLE = True
-        except ImportError:
-            pass
-    return GEOPANDAS_AVAILABLE
+# Bibliotecas geoespaciais
+import geopandas as gpd
 
 import requests
 
@@ -1544,18 +1531,11 @@ def baixar_shapefile_brasil():
     """Carrega shapefile leve dos municípios do Brasil (3.7MB)"""
     import os
     
-    if not GEOPANDAS_AVAILABLE:
-        st.warning("⚠️ GeoPandas não disponível - usando mapa simplificado")
-        return None
-    
     # Usar shapefile leve local (já otimizado)
     shapefile_path = 'dados/geo/municipios_alagoas_only.shp'
     
     if os.path.exists(shapefile_path):
         try:
-            if not import_geopandas():
-                st.error("❌ GeoPandas não disponível. Mapa não pode ser carregado.")
-                return None
             gdf = gpd.read_file(shapefile_path)
             return gdf
         except Exception as e:
@@ -1596,9 +1576,6 @@ def baixar_shapefile_brasil():
             return None
     
     try:
-        if not import_geopandas():
-            st.error("❌ GeoPandas não disponível. Mapa não pode ser carregado.")
-            return None
             
         st.info("🔄 Processando dados geográficos (simplificando para reduzir tamanho)...")
         
@@ -1691,10 +1668,6 @@ def normalizar_municipio_para_exibicao(nome):
 
 def create_interactive_map(df, df_full=None):
     """Cria um mapa coroplético dos municípios de Alagoas usando shapefile do IBGE"""
-    
-    # Se geopandas não está disponível, usa fallback diretamente
-    if not import_geopandas():
-        return create_interactive_map_fallback(df, df_full, show_filtered_only=True)
     
     try:
         # Baixar/carregar shapefile do Brasil (otimizado)
