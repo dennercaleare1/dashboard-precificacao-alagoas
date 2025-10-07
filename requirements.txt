@@ -1,4 +1,4 @@
-# Dashboard de Precificação - Dependências Principais
+# Dashboard de Precificação - Dependências Essenciais
 streamlit>=1.28.0
 pandas>=2.0.0
 numpy>=1.24.0
@@ -7,17 +7,10 @@ numpy>=1.24.0
 plotly>=5.15.0
 folium>=0.15.0
 streamlit-folium>=0.15.0
-matplotlib>=3.7.0
-seaborn>=0.12.0
 
-# Bibliotecas geoespaciais (seguindo exemplo do repositório MDA)
+# Bibliotecas geoespaciais (opcionais - com fallback)
 geopandas>=1.1.1
 shapely>=2.1.1
-pyproj>=3.7.2
-pyogrio>=0.11.1
 
 # Geração de PDF/Relatórios
 reportlab>=4.0.0
-
-# Suporte para exportação de gráficos
-kaleido>=0.2.1

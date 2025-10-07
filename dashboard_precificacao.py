@@ -23,10 +23,15 @@ import matplotlib.pyplot as plt
 import matplotlib
 matplotlib.use('Agg')  # Backend não-interativo para PDFs
 
-# Bibliotecas geoespaciais
-import geopandas as gpd
-
 import requests
+
+# GeoPandas será importado quando necessário para evitar erros no Streamlit Cloud
+try:
+    import geopandas as gpd
+    GEOPANDAS_AVAILABLE = True
+except ImportError:
+    GEOPANDAS_AVAILABLE = False
+    gpd = None
 
 # Bibliotecas para geração de PDF
 from reportlab.lib.pagesizes import letter, A4
@@ -1535,6 +1540,9 @@ def baixar_shapefile_brasil():
     shapefile_path = 'dados/geo/municipios_alagoas_only.shp'
     
     if os.path.exists(shapefile_path):
+        if not GEOPANDAS_AVAILABLE:
+            st.warning("⚠️ GeoPandas não disponível - usando mapa simplificado")
+            return None
         try:
             gdf = gpd.read_file(shapefile_path)
             return gdf
@@ -1576,6 +1584,9 @@ def baixar_shapefile_brasil():
             return None
     
     try:
+        if not GEOPANDAS_AVAILABLE:
+            st.warning("⚠️ GeoPandas não disponível - usando mapa simplificado")
+            return None
             
         st.info("🔄 Processando dados geográficos (simplificando para reduzir tamanho)...")
         
@@ -1668,6 +1679,10 @@ def normalizar_municipio_para_exibicao(nome):
 
 def create_interactive_map(df, df_full=None):
     """Cria um mapa coroplético dos municípios de Alagoas usando shapefile do IBGE"""
+    
+    # Se GeoPandas não está disponível, usa fallback diretamente
+    if not GEOPANDAS_AVAILABLE:
+        return create_interactive_map_fallback(df, df_full, show_filtered_only=True)
     
     try:
         # Baixar/carregar shapefile do Brasil (otimizado)
