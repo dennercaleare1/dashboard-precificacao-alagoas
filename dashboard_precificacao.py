@@ -23,13 +23,21 @@ import matplotlib.pyplot as plt
 import matplotlib
 matplotlib.use('Agg')  # Backend não-interativo para PDFs
 
-# Bibliotecas geoespaciais (importação condicional)
-try:
-    import geopandas as gpd
-    GEOPANDAS_AVAILABLE = True
-except ImportError:
-    GEOPANDAS_AVAILABLE = False
-    # Aviso será mostrado na interface quando necessário
+# GeoPandas será importado sob demanda para evitar erros no Streamlit Cloud
+GEOPANDAS_AVAILABLE = False
+gpd = None
+
+def import_geopandas():
+    """Importa GeoPandas sob demanda"""
+    global gpd, GEOPANDAS_AVAILABLE
+    if not GEOPANDAS_AVAILABLE:
+        try:
+            import geopandas as gpd_module
+            gpd = gpd_module
+            GEOPANDAS_AVAILABLE = True
+        except ImportError:
+            pass
+    return GEOPANDAS_AVAILABLE
 
 import requests
 
@@ -1545,6 +1553,9 @@ def baixar_shapefile_brasil():
     
     if os.path.exists(shapefile_path):
         try:
+            if not import_geopandas():
+                st.error("❌ GeoPandas não disponível. Mapa não pode ser carregado.")
+                return None
             gdf = gpd.read_file(shapefile_path)
             return gdf
         except Exception as e:
@@ -1585,6 +1596,10 @@ def baixar_shapefile_brasil():
             return None
     
     try:
+        if not import_geopandas():
+            st.error("❌ GeoPandas não disponível. Mapa não pode ser carregado.")
+            return None
+            
         st.info("🔄 Processando dados geográficos (simplificando para reduzir tamanho)...")
         
         # Carregar shapefile do Brasil
@@ -1678,20 +1693,20 @@ def create_interactive_map(df, df_full=None):
     """Cria um mapa coroplético dos municípios de Alagoas usando shapefile do IBGE"""
     
     # Se geopandas não está disponível, usa fallback diretamente
-    if not GEOPANDAS_AVAILABLE:
-        return create_interactive_map_fallback(df, df_full)
+    if not import_geopandas():
+        return create_interactive_map_fallback(df, df_full, show_filtered_only=True)
     
     try:
         # Baixar/carregar shapefile do Brasil (otimizado)
         gdf = baixar_shapefile_brasil()
         if gdf is None:
-            return create_interactive_map_fallback(df, df_full)  # Função de fallback com coordenadas
+            return create_interactive_map_fallback(df, df_full, show_filtered_only=True)  # Função de fallback com coordenadas
         
         # Mapear coluna de município no DataFrame
         col_municipio = get_municipio_column(df)
         if not col_municipio or col_municipio not in df.columns:
             st.error("❌ Coluna de município não encontrada nos dados")
-            return create_interactive_map_fallback(df, df_full)
+            return create_interactive_map_fallback(df, df_full, show_filtered_only=True)
         
         # Criar DataFrame para merge
         df_merge = df.copy()
@@ -1715,7 +1730,7 @@ def create_interactive_map(df, df_full=None):
                 df_merge, 
                 left_on='CD_MUN', 
                 right_on='CD_MUN', 
-                how='left'  # LEFT JOIN - mostra TODOS os municípios do shapefile
+                how='inner'  # INNER JOIN - mostra APENAS municípios filtrados
             )
         else:
             # Fallback: verificar se CSV tem coluna UF para matching nome+UF
@@ -1744,7 +1759,7 @@ def create_interactive_map(df, df_full=None):
                         df_merge, 
                         left_on='chave_merge', 
                         right_on='chave_merge', 
-                        how='left'  # LEFT JOIN - mostra TODOS os municípios do shapefile
+                        how='inner'  # INNER JOIN - mostra APENAS municípios filtrados
                     )
                 else:
                     # Fallback final: merge apenas por nome (método antigo)
@@ -1752,7 +1767,7 @@ def create_interactive_map(df, df_full=None):
                         df_merge, 
                         left_on='municipio_normalizado', 
                         right_on='municipio_normalizado', 
-                        how='left'  # LEFT JOIN - mostra TODOS os municípios do shapefile
+                        how='inner'  # INNER JOIN - mostra APENAS municípios filtrados
                     )
             else:
                 # Fallback final: merge apenas por nome (método antigo)
@@ -1761,7 +1776,7 @@ def create_interactive_map(df, df_full=None):
                     df_merge, 
                     left_on='municipio_normalizado', 
                     right_on='municipio_normalizado', 
-                    how='left'  # LEFT JOIN - mostra TODOS os municípios do shapefile
+                    how='inner'  # INNER JOIN - mostra APENAS municípios filtrados
                 )
         
         # Shapefile já contém apenas Alagoas - sem necessidade de filtro adicional
@@ -2094,7 +2109,7 @@ def create_interactive_map(df, df_full=None):
     except Exception as e:
         st.error(f"❌ Erro ao criar mapa com shapefile: {str(e)}")
         st.info("🔄 Usando mapa alternativo...")
-        return create_interactive_map_fallback(df, df_full)
+        return create_interactive_map_fallback(df, df_full, show_filtered_only=True)
 
 def create_interactive_map_fallback(df, df_full=None, show_filtered_only=False):
     """
@@ -4268,14 +4283,13 @@ def main():
         total_municipios = len(df_original) if 'df_original' in locals() else len(df)
         municipios_filtrados = len(df_filtered)
         
-
         
         # Criar e exibir o mapa em tela cheia
-        # SEMPRE MOSTRAR TODOS OS MUNICÍPIOS, independente de filtros
+        # Mostrar municípios filtrados no mapa
         with st.spinner("Carregando mapa interativo..."):
             try:
-                # Usar df_original (todos os municípios) para o mapa, destacando os filtrados
-                interactive_map = create_interactive_map(df_original, df_filtered)
+                # Usar df_filtered para mostrar apenas municípios que atendem aos filtros
+                interactive_map = create_interactive_map(df_filtered, df_original)
                 # Mapa ocupando toda a largura da tela
                 st_folium(interactive_map, height=600, width='stretch')
                 

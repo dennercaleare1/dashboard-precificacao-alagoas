@@ -10,15 +10,17 @@ streamlit-folium>=0.15.0
 matplotlib>=3.7.0
 seaborn>=0.12.0
 
-# Bibliotecas geoespaciais (com dependências para Streamlit Cloud)
-geopandas>=0.13.0
-shapely>=2.0.0
-fiona>=1.8.0
-pyproj>=3.4.0
-rtree>=1.0.0
-
 # Geração de PDF/Relatórios
 reportlab>=4.0.0
 
 # Suporte para exportação de gráficos
 kaleido>=0.2.1
+
+# OPCIONAL: Bibliotecas geoespaciais para mapas avançados
+# Comentadas para evitar problemas no Streamlit Cloud
+# Descomente se executar localmente e quiser mapas com shapefiles
+# geopandas>=0.13.0
+# shapely>=2.0.0
+# fiona>=1.8.0
+# pyproj>=3.4.0
+# rtree>=1.0.0
